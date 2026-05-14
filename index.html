@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ホテルニューイタヤ デジタルサイネージCMS 試作</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main id="adminApp" class="admin-app" aria-label="CMS管理画面">
+      <header class="admin-header">
+        <div>
+          <p class="eyebrow">DIGITAL SIGNAGE CMS PROTOTYPE</p>
+          <h1>ホテルニューイタヤ 表示管理</h1>
+        </div>
+        <img class="admin-logo" src="./assets/logo_itaya.png" alt="HOTEL NEW ITAYA">
+      </header>
+
+      <section class="admin-layout">
+        <div class="admin-controls">
+          <section class="panel">
+            <div class="panel-title">
+              <div>
+                <p class="panel-kicker">Screen 01</p>
+                <h2>広告利用画面①</h2>
+              </div>
+              <a class="ghost-link" data-view-link href="./index.html?screen=ad1" target="_blank">表示画面</a>
+            </div>
+            <p class="panel-note">JPEG/PNG等の画像、PDFを登録できます。縦は1枚表示、横は上段・下段を別々に登録して2枚上下表示します。PDFが複数ページの場合は、1ページずつ広告素材として扱います。</p>
+            <div class="layout-choice" role="radiogroup" aria-label="広告表示方向">
+              <label>
+                <input id="adLayoutPortrait" type="radio" name="adLayout" value="portrait">
+                <span>縦</span>
+              </label>
+              <label>
+                <input id="adLayoutLandscape" type="radio" name="adLayout" value="landscape">
+                <span>横</span>
+              </label>
+            </div>
+            <label class="setting-field">
+              <span>スライド秒数</span>
+              <input id="adSlideSeconds" type="number" min="1" max="120" step="1">
+            </label>
+            <div class="event-tools ad-sample-tools">
+              <button id="restoreAdSamples" type="button">サンプル復元</button>
+              <button id="clearAdSamples" type="button">サンプル削除</button>
+            </div>
+            <div id="adPortraitControls" class="media-mode-panel">
+              <h3>縦表示用素材</h3>
+              <label class="upload-box">
+                <input id="adPortraitUpload" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" multiple>
+                <span>PDF / 画像を登録</span>
+              </label>
+              <div id="adPortraitList" class="media-list"></div>
+            </div>
+            <div id="adLandscapeControls" class="media-mode-panel">
+              <div class="split-upload-grid">
+                <section class="split-upload">
+                  <h3>横表示 上段素材</h3>
+                  <label class="upload-box">
+                    <input id="adLandscapeTopUpload" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" multiple>
+                    <span>上段用 PDF / 画像を登録</span>
+                  </label>
+                  <div id="adLandscapeTopList" class="media-list"></div>
+                </section>
+                <section class="split-upload">
+                  <h3>横表示 下段素材</h3>
+                  <label class="upload-box">
+                    <input id="adLandscapeBottomUpload" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" multiple>
+                    <span>下段用 PDF / 画像を登録</span>
+                  </label>
+                  <div id="adLandscapeBottomList" class="media-list"></div>
+                </section>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">
+              <div>
+                <p class="panel-kicker">Screen 02</p>
+                <h2>広告利用画面②</h2>
+              </div>
+              <a class="ghost-link" data-view-link href="./index.html?screen=ad2" target="_blank">表示画面</a>
+            </div>
+            <p class="panel-note">広告利用画面①と同じ仕様です。別の端末・別の設置場所向けに、素材と縦横設定を分けて管理できます。</p>
+            <div class="layout-choice" role="radiogroup" aria-label="広告表示方向②">
+              <label>
+                <input id="ad2LayoutPortrait" type="radio" name="ad2Layout" value="portrait">
+                <span>縦</span>
+              </label>
+              <label>
+                <input id="ad2LayoutLandscape" type="radio" name="ad2Layout" value="landscape">
+                <span>横</span>
+              </label>
+            </div>
+            <label class="setting-field">
+              <span>スライド秒数</span>
+              <input id="ad2SlideSeconds" type="number" min="1" max="120" step="1">
+            </label>
+            <div class="event-tools ad-sample-tools">
+              <button id="restoreAd2Samples" type="button">サンプル復元</button>
+              <button id="clearAd2Samples" type="button">サンプル削除</button>
+            </div>
+            <div id="ad2PortraitControls" class="media-mode-panel">
+              <h3>縦表示用素材</h3>
+              <label class="upload-box">
+                <input id="ad2PortraitUpload" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" multiple>
+                <span>PDF / 画像を登録</span>
+              </label>
+              <div id="ad2PortraitList" class="media-list"></div>
+            </div>
+            <div id="ad2LandscapeControls" class="media-mode-panel">
+              <div class="split-upload-grid">
+                <section class="split-upload">
+                  <h3>横表示 上段素材</h3>
+                  <label class="upload-box">
+                    <input id="ad2LandscapeTopUpload" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" multiple>
+                    <span>上段用 PDF / 画像を登録</span>
+                  </label>
+                  <div id="ad2LandscapeTopList" class="media-list"></div>
+                </section>
+                <section class="split-upload">
+                  <h3>横表示 下段素材</h3>
+                  <label class="upload-box">
+                    <input id="ad2LandscapeBottomUpload" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" multiple>
+                    <span>下段用 PDF / 画像を登録</span>
+                  </label>
+                  <div id="ad2LandscapeBottomList" class="media-list"></div>
+                </section>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">
+              <div>
+                <p class="panel-kicker">Screen 03</p>
+                <h2>会場案内</h2>
+              </div>
+              <a class="ghost-link" data-view-link href="./index.html?screen=venue" target="_blank">表示画面</a>
+            </div>
+            <p class="panel-note">必須項目は「時間・会場・名前」。表示範囲は、時間帯で自動切替または終日すべて表示を選べます。</p>
+
+            <form id="eventForm" class="event-form">
+              <label>
+                <span>時間</span>
+                <input id="eventTime" type="time" required>
+              </label>
+              <label>
+                <span>会場</span>
+                <select id="eventVenue" required></select>
+              </label>
+              <label class="event-name-field">
+                <span>名前</span>
+                <textarea id="eventName" rows="2" required placeholder="例：株式会社〇〇様&#10;第二部 ご宴席"></textarea>
+              </label>
+              <div class="event-form-actions">
+                <button id="eventSubmitButton" type="submit">追加</button>
+                <button id="cancelEventEdit" class="secondary is-hidden" type="button">編集取消</button>
+              </div>
+            </form>
+
+            <div class="venue-options">
+              <fieldset class="venue-option-group">
+                <legend>表示範囲</legend>
+                <div class="venue-toggle">
+                  <label>
+                    <input id="venueModeAuto" type="radio" name="venueDisplayMode" value="auto">
+                    <span>時間帯で自動</span>
+                  </label>
+                  <label>
+                    <input id="venueModeAll" type="radio" name="venueDisplayMode" value="all">
+                    <span>終日すべて</span>
+                  </label>
+                </div>
+              </fieldset>
+              <fieldset class="venue-option-group">
+                <legend>終了済み</legend>
+                <div class="venue-toggle">
+                  <label>
+                    <input id="venueEndedShow" type="radio" name="venueEndedMode" value="show">
+                    <span>表示</span>
+                  </label>
+                  <label>
+                    <input id="venueEndedHide" type="radio" name="venueEndedMode" value="hide">
+                    <span>非表示</span>
+                  </label>
+                </div>
+              </fieldset>
+              <fieldset class="venue-option-group">
+                <legend>デザイン</legend>
+                <div class="venue-toggle">
+                  <label>
+                    <input id="venueThemeLight" type="radio" name="venueTheme" value="light">
+                    <span>ライト</span>
+                  </label>
+                  <label>
+                    <input id="venueThemeDark" type="radio" name="venueTheme" value="dark">
+                    <span>ダーク</span>
+                  </label>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="event-tools">
+              <label>
+                <span>スライド秒数</span>
+                <input id="venueSlideSeconds" type="number" min="1" max="120" step="1">
+              </label>
+              <label>
+                <span>プレビュー時刻</span>
+                <input id="previewTime" type="time" value="18:00">
+              </label>
+              <button id="loadSampleEvents" type="button">サンプル復元</button>
+              <button id="clearEvents" type="button">会場案内を空にする</button>
+            </div>
+            <div id="eventList" class="event-list"></div>
+          </section>
+        </div>
+
+        <aside class="preview-panel" aria-label="表示プレビュー">
+          <div class="preview-toolbar">
+            <div>
+              <p class="panel-kicker">50 inch portrait preview</p>
+              <h2>表示プレビュー</h2>
+            </div>
+            <div class="segmented" role="tablist" aria-label="プレビュー切替">
+              <button class="active" type="button" data-preview-screen="ad1">広告①</button>
+              <button type="button" data-preview-screen="ad2">広告②</button>
+              <button type="button" data-preview-screen="venue">会場</button>
+            </div>
+          </div>
+          <div id="screenPreview" class="monitor-preview"></div>
+        </aside>
+      </section>
+    </main>
+
+    <main id="viewerApp" class="viewer-app" aria-label="サイネージ表示画面"></main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
