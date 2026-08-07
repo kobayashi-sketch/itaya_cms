@@ -26,21 +26,27 @@
 - 11件以上の会場案内スライド
 - 会場案内のスライド秒数指定
 - 開始30分前から開始後2時間までの会場案内ブロック強調
+- 管理画面ログイン
+- PHPサーバー保存
+- 広告素材アップロード保存
+- TableCheck API同期
+- TableCheck自動表示画面
+- レポート表示
 
 ## 主要ファイル
 
 - `index.html`: 管理画面と表示画面の土台
 - `styles.css`: 見た目、50インチ縦型プレビュー、ライト/ダーク
 - `app.js`: 登録、表示切替、スライド、PDF処理
+- `auth.php`, `login.php`: 管理ログイン
+- `state.php`, `upload.php`: サーバー保存と素材アップロード
+- `tablecheck-sync.php`, `tablecheck.js`: TableCheck同期
 - `assets/logo_itaya.png`: 表示用ロゴ
 - `assets/ad-samples/`: 広告表示用のサンプル画像
 
 ## 未実装・次候補
 
-- GitHub/Vercel/Netlifyへの公開
-- 管理画面ログイン
-- 登録データのクラウド保存
-- TableCheck API連携
+- 本番サーバー設定ファイルの安全な管理
 - 実機モニターでの表示検証
 
 ## 人間が確認すること

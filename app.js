@@ -3,8 +3,13 @@
   const DB_NAME = "itaya-signage-media";
   const DB_VERSION = 1;
   const STORE_NAME = "media";
+  const STATE_API_URL = "./state.php";
+  const AUTH_API_URL = "./login.php";
+  const UPLOAD_API_URL = "./upload.php";
   const DEFAULT_SLIDE_SECONDS = 5;
   const VENUE_PAGE_SIZE = 10;
+  const VENUE_TAB_DAYS = 7;
+  const VENUE_TIME_ZONE = "Asia/Tokyo";
   const SLIDE_TRANSITION_MS = 760;
   const PDFJS_BASE_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38";
   const PDFJS_URL = `${PDFJS_BASE_URL}/build/pdf.mjs`;
@@ -13,7 +18,10 @@
   const PDF_RENDER_MAX_PIXELS = 6000000;
 
   const params = new URLSearchParams(window.location.search);
-  const screenParam = params.get("screen");
+  const pageScreen = document.body?.dataset?.screen || window.SIGNAGE_SCREEN || "";
+  const screenParam = params.get("screen") || pageScreen;
+  const AUTH_KEY = "itaya-signage-admin-auth";
+  const AUTH_CSRF_KEY = "itaya-signage-admin-csrf";
   const validScreens = new Set(["ad", "ad1", "ad2", "ad-portrait", "ad-landscape", "venue"]);
   const mediaUrlCache = new Map();
   const pdfPageUrlCache = new Map();
@@ -171,6 +179,8 @@
   function cloneSampleEvents() {
     return sampleEvents.map((event) => ({
       id: crypto.randomUUID(),
+      date: currentDateString(),
+      visibleOnSignage: false,
       ...event
     }));
   }
@@ -185,15 +195,36 @@
     return displayVenueName(venue).replace(/[（(][^）)]*[）)]$/, "");
   }
 
+  function formatVenueLines(venue) {
+    return displayVenueName(venue).split(",").map((item) => item.trim()).filter(Boolean).join("、");
+  }
+
   function venueLocationFor(venue) {
-    const name = displayVenueName(venue);
-    return venueLocations[name] || venueLocations[venueBaseName(name)] || "";
+    const names = displayVenueName(venue).split(",").map((item) => item.trim()).filter(Boolean);
+    for (const name of names) {
+      const baseName = venueBaseName(name);
+      const exactLocation = venueLocations[name] || venueLocations[baseName];
+      if (exactLocation) return exactLocation;
+      const matchedVenue = Object.keys(venueLocations)
+        .sort((a, b) => b.length - a.length)
+        .find((venueName) => name.includes(venueName) || baseName.includes(venueName));
+      if (matchedVenue) return venueLocations[matchedVenue];
+    }
+    return "";
+  }
+
+  function eventLocationFor(event) {
+    return cleanText(event?.location || "", 60) || venueLocationFor(event?.venue || "");
   }
 
   function normalizeEventVenue(event) {
+    const venue = displayVenueName(event.venue);
     return {
       ...event,
-      venue: displayVenueName(event.venue)
+      date: event.date || currentDateString(),
+      visibleOnSignage: event.visibleOnSignage === true,
+      venue,
+      location: cleanText(event.location || venueLocationFor(venue), 60)
     };
   }
 
@@ -228,6 +259,7 @@
       venueDisplayMode: "auto",
       venueEndedMode: "show",
       venueTheme: "light",
+      venueDate: currentDateString(),
       adPortrait: [],
       adLandscape: [],
       slideSeconds: {
@@ -241,11 +273,7 @@
     };
   }
 
-  function loadState() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return defaultState();
-      const parsed = JSON.parse(raw);
+  function normalizeStoredState(parsed) {
       const parsedSeconds = parsed.slideSeconds || {};
       const legacyMedia = [
         ...(Array.isArray(parsed.adPortrait) ? parsed.adPortrait : []),
@@ -253,6 +281,7 @@
       ];
       const legacyLandscape = Array.isArray(parsed.adLandscape) ? parsed.adLandscape : [];
       const adMedia = Array.isArray(parsed.adMedia) ? parsed.adMedia : legacyMedia;
+      const venueDate = normalizeDateString(parsed.venueDate);
       return {
         adMedia: dedupeMedia(adMedia),
         adLandscapeTop: dedupeMedia(Array.isArray(parsed.adLandscapeTop) ? parsed.adLandscapeTop : legacyLandscape.filter((_, index) => index % 2 === 0)),
@@ -266,6 +295,7 @@
         venueDisplayMode: parsed.venueDisplayMode === "all" ? "all" : "auto",
         venueEndedMode: parsed.venueEndedMode === "hide" ? "hide" : "show",
         venueTheme: parsed.venueTheme === "dark" ? "dark" : "light",
+        venueDate: isVenueDateInCurrentTabs(venueDate) ? venueDate : currentDateString(),
         adPortrait: Array.isArray(parsed.adPortrait) ? parsed.adPortrait : [],
         adLandscape: Array.isArray(parsed.adLandscape) ? parsed.adLandscape : [],
         slideSeconds: {
@@ -277,16 +307,25 @@
         },
         events: Array.isArray(parsed.events) ? parsed.events.map(normalizeEventVenue) : cloneSampleEvents()
       };
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return defaultState();
+      return normalizeStoredState(JSON.parse(raw));
     } catch (error) {
       console.warn("Failed to load signage state", error);
       return defaultState();
     }
   }
 
-  let state = loadState();
-  let previewScreen = "ad1";
+  let state = defaultState();
+  let previewScreen = document.body?.dataset?.adminScreen || "ad1";
   let renderToken = 0;
   let editingEventId = null;
+  let saveStateTimer = 0;
+  let localMediaMigrationStarted = false;
 
   function ensureInitialAdSamples() {
     if (state.adSamplesInitialized) return;
@@ -314,9 +353,43 @@
 
   function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.clearTimeout(saveStateTimer);
+    saveStateTimer = window.setTimeout(saveStateToServer, 200);
   }
 
-  ensureInitialAdSamples();
+  async function saveStateToServer() {
+    try {
+      const csrfToken = sessionStorage.getItem(AUTH_CSRF_KEY) || "";
+      const response = await fetch(STATE_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+        body: JSON.stringify(state)
+      });
+      if (!response.ok) throw new Error(`State save failed: ${response.status}`);
+    } catch (error) {
+      console.warn("Failed to save shared state", error);
+    }
+  }
+
+  async function fetchSharedState() {
+    try {
+      const response = await fetch(`${STATE_API_URL}?t=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) return null;
+      const parsed = await response.json();
+      if (!parsed || !Object.keys(parsed).length) return null;
+      const sharedState = normalizeStoredState(parsed);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sharedState));
+      return sharedState;
+    } catch (error) {
+      console.warn("Failed to load shared state", error);
+      return null;
+    }
+  }
+
+  async function refreshSharedState() {
+    const sharedState = await fetchSharedState();
+    if (sharedState) state = sharedState;
+  }
 
   function normalizeSlideSeconds(value) {
     const number = Number(value);
@@ -472,9 +545,18 @@
     return pdfjsLib.getDocument(pdfLoadOptions(data)).promise;
   }
 
+  async function openPdfFromUrl(url) {
+    const pdfjsLib = await loadPdfJs();
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) return null;
+    const data = new Uint8Array(await response.arrayBuffer());
+    return pdfjsLib.getDocument(pdfLoadOptions(data)).promise;
+  }
+
   async function getPdfDocument(media) {
     if (pdfDocumentCache.has(media.id)) return pdfDocumentCache.get(media.id);
     const promise = (async () => {
+      if (media.assetUrl) return openPdfFromUrl(media.assetUrl);
       const record = await getMedia(media.id);
       if (!record || !record.blob) return null;
       return openPdfFromBlob(record.blob);
@@ -495,10 +577,9 @@
     if (Number.isFinite(Number(media.pageCount)) && Number(media.pageCount) > 0) {
       return Number(media.pageCount);
     }
-    const record = await getMedia(media.id);
-    if (!record || !record.blob) return 1;
     try {
-      const pageCount = await readPdfPageCountFromBlob(record.blob);
+      const pdf = await getPdfDocument(media);
+      const pageCount = pdf?.numPages || 1;
       media.pageCount = pageCount;
       saveState();
       return pageCount;
@@ -564,9 +645,143 @@
     return hours * 60 + minutes;
   }
 
+  function venueDateTimeParts(date = new Date()) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: VENUE_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(date);
+    return Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  }
+
+  function currentDateString() {
+    const parts = venueDateTimeParts();
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+
   function currentTimeString() {
-    const now = new Date();
-    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const parts = venueDateTimeParts();
+    return `${parts.hour}:${parts.minute}`;
+  }
+
+  function normalizeDateString(value) {
+    const text = String(value || "").trim();
+    const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (!match) return "";
+    return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
+  }
+
+  function normalizeTimeString(value) {
+    const match = String(value || "").trim().match(/^(\d{1,2}):([0-5]\d)$/);
+    if (!match) return "";
+    const hour = Number(match[1]);
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) return "";
+    return `${String(hour).padStart(2, "0")}:${match[2]}`;
+  }
+
+  function cleanText(value, maxLength) {
+    return String(value || "")
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+      .trim()
+      .slice(0, maxLength);
+  }
+
+  function cleanMultilineText(value, maxLength) {
+    return String(value || "")
+      .replace(/\r\n?/g, "\n")
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join("\n")
+      .slice(0, maxLength);
+  }
+
+  function dateForVenue(options = {}) {
+    const previewDate = normalizeDateString(options.previewDate);
+    if (previewDate) return previewDate;
+    if (pageScreen === "venue") return currentDateString();
+    return normalizeDateString(params.get("date") || state.venueDate) || currentDateString();
+  }
+
+  function dateObjectFromString(value) {
+    const date = normalizeDateString(value) || currentDateString();
+    const [year, month, day] = date.split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, day) - (9 * 60 * 60 * 1000));
+  }
+
+  function dateStringFromOffset(offset) {
+    const date = dateObjectFromString(currentDateString());
+    date.setUTCDate(date.getUTCDate() + offset);
+    const parts = venueDateTimeParts(date);
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+
+  function venueTabDates() {
+    return Array.from({ length: VENUE_TAB_DAYS }, (_, index) => dateStringFromOffset(index));
+  }
+
+  function isVenueDateInCurrentTabs(date) {
+    const normalized = normalizeDateString(date);
+    return Boolean(normalized) && venueTabDates().includes(normalized);
+  }
+
+  function venueEventIdentity(event) {
+    return [
+      event.date || currentDateString(),
+      event.time || "",
+      displayVenueName(event.venue),
+      String(event.name || "").trim()
+    ].join("|");
+  }
+
+  function mergeImportedVenueEvents(importedEvents) {
+    const importedDates = new Set(importedEvents.map((event) => event.date || currentDateString()));
+    const visibleByIdentity = new Map(
+      state.events
+        .filter((event) => event.visibleOnSignage === true)
+        .map((event) => [venueEventIdentity(event), true])
+    );
+    const retainedEvents = state.events.filter((event) => !importedDates.has(event.date || currentDateString()));
+    const mergedImportedEvents = importedEvents.map((event) => ({
+      ...event,
+      visibleOnSignage: visibleByIdentity.get(venueEventIdentity(event)) === true
+    }));
+    return {
+      events: sortEvents([...retainedEvents, ...mergedImportedEvents]),
+      updatedDateCount: importedDates.size
+    };
+  }
+
+  function shortDateLabel(value) {
+    return new Intl.DateTimeFormat("ja-JP", {
+      timeZone: VENUE_TIME_ZONE,
+      month: "numeric",
+      day: "numeric",
+      weekday: "short"
+    }).format(dateObjectFromString(value));
+  }
+
+  function syncVenueDateInputs() {
+    const date = state.venueDate || currentDateString();
+    const eventDate = document.getElementById("eventDate");
+    const previewDate = document.getElementById("previewDate");
+    if (eventDate) eventDate.value = date;
+    if (previewDate) previewDate.value = date;
+  }
+
+  async function selectVenueDate(date, options = {}) {
+    state.venueDate = normalizeDateString(date) || currentDateString();
+    syncVenueDateInputs();
+    saveState();
+    renderEventList();
+    if (options.preview !== false) {
+      await renderAdminPreview();
+    }
   }
 
   function isEventInActiveWindow(event, referenceTime) {
@@ -601,6 +816,7 @@
 
   function formatDate(date = new Date()) {
     return new Intl.DateTimeFormat("ja-JP", {
+      timeZone: VENUE_TIME_ZONE,
       year: "numeric",
       month: "long",
       day: "numeric",
@@ -608,8 +824,21 @@
     }).format(date);
   }
 
+  function formatVenueTitleDate(date = new Date()) {
+    const parts = new Intl.DateTimeFormat("ja-JP", {
+      timeZone: VENUE_TIME_ZONE,
+      month: "numeric",
+      day: "numeric",
+      weekday: "short"
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+    return `${values.month}月${values.day}日（${values.weekday}）の会場案内`;
+  }
+
   function sortEvents(events) {
     return [...events].sort((a, b) => {
+      const dateDiff = String(a.date || "").localeCompare(String(b.date || ""), "ja");
+      if (dateDiff !== 0) return dateDiff;
       const diff = minutesFromTime(a.time) - minutesFromTime(b.time);
       if (diff !== 0) return diff;
       return a.venue.localeCompare(b.venue, "ja");
@@ -627,26 +856,72 @@
     const uploads = Array.from(files);
     for (const file of uploads) {
       if (!isAllowedMediaFile(file)) continue;
-      const id = crypto.randomUUID();
       const type = guessType(file);
-      const media = {
-        id,
-        name: file.name,
-        type,
-        size: file.size,
-        createdAt: new Date().toISOString()
-      };
+      let pageCount = 0;
       if (type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
         try {
-          media.pageCount = await readPdfPageCountFromBlob(file);
+          pageCount = await readPdfPageCountFromBlob(file);
         } catch (error) {
           console.warn("PDF page count failed", error);
-          media.pageCount = 1;
+          pageCount = 1;
         }
       }
-      await putMedia({ ...media, blob: file });
+      const media = await uploadMediaFile(file, pageCount);
       state[key].push(media);
     }
+    saveState();
+    renderAdminLists();
+    await renderAdminPreview();
+  }
+
+  async function uploadMediaFile(file, pageCount = 0, fallbackName = "upload") {
+    const csrfToken = sessionStorage.getItem(AUTH_CSRF_KEY) || "";
+    const formData = new FormData();
+    const fileName = file.name || fallbackName;
+    formData.append("file", file, fileName);
+    if (pageCount > 0) formData.append("pageCount", String(pageCount));
+    const response = await fetch(UPLOAD_API_URL, {
+      method: "POST",
+      headers: csrfToken ? { "X-CSRF-Token": csrfToken } : {},
+      body: formData
+    });
+    if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
+    const result = await response.json();
+    if (result?.ok !== true || !result.media?.assetUrl) {
+      throw new Error("Upload response is invalid");
+    }
+    return result.media;
+  }
+
+  async function migrateLocalMediaToServer() {
+    if (localMediaMigrationStarted) return;
+    localMediaMigrationStarted = true;
+    const keys = [
+      "adMedia",
+      "adLandscapeTop",
+      "adLandscapeBottom",
+      "ad2Media",
+      "ad2LandscapeTop",
+      "ad2LandscapeBottom"
+    ];
+    let migrated = false;
+    for (const key of keys) {
+      const items = Array.isArray(state[key]) ? state[key] : [];
+      for (let index = 0; index < items.length; index += 1) {
+        const media = items[index];
+        if (!media || media.assetUrl || isSampleMedia(media)) continue;
+        try {
+          const record = await getMedia(media.id);
+          if (!record?.blob) continue;
+          const uploaded = await uploadMediaFile(record.blob, media.pageCount || 0, media.name || `${media.id}.pdf`);
+          items[index] = { ...media, ...uploaded, id: uploaded.id || media.id };
+          migrated = true;
+        } catch (error) {
+          console.warn("Local media migration failed", error);
+        }
+      }
+    }
+    if (!migrated) return;
     saveState();
     renderAdminLists();
     await renderAdminPreview();
@@ -658,6 +933,16 @@
     if (!sampleMediaIds.has(id)) {
       await deleteMedia(id);
     }
+    renderAdminLists();
+    await renderAdminPreview();
+  }
+
+  async function moveMedia(key, index, direction) {
+    const items = state[key];
+    const nextIndex = index + direction;
+    if (!Array.isArray(items) || nextIndex < 0 || nextIndex >= items.length) return;
+    [items[index], items[nextIndex]] = [items[nextIndex], items[index]];
+    saveState();
     renderAdminLists();
     await renderAdminPreview();
   }
@@ -699,13 +984,12 @@
   }
 
   function populateVenues() {
-    const select = document.getElementById("eventVenue");
-    select.replaceChildren();
+    const list = document.getElementById("eventVenueOptions");
+    list.replaceChildren();
     venues.forEach((venue) => {
       const option = document.createElement("option");
       option.value = venue;
-      option.textContent = venue;
-      select.appendChild(option);
+      list.appendChild(option);
     });
   }
 
@@ -720,8 +1004,12 @@
   function resetEventForm() {
     const form = document.getElementById("eventForm");
     if (form) form.reset();
+    const dateInput = document.getElementById("eventDate");
+    if (dateInput) dateInput.value = state.venueDate || currentDateString();
     const venueSelect = document.getElementById("eventVenue");
     if (venueSelect) venueSelect.value = venues[0];
+    const locationInput = document.getElementById("eventLocation");
+    if (locationInput) locationInput.value = venueLocationFor(venues[0]);
     editingEventId = null;
     setEventFormMode();
   }
@@ -730,12 +1018,23 @@
     const eventItem = state.events.find((item) => item.id === id);
     if (!eventItem) return;
     editingEventId = id;
+    document.getElementById("eventDate").value = eventItem.date || state.venueDate || currentDateString();
     document.getElementById("eventTime").value = eventItem.time;
     document.getElementById("eventVenue").value = displayVenueName(eventItem.venue);
+    document.getElementById("eventLocation").value = eventLocationFor(eventItem);
     document.getElementById("eventName").value = eventItem.name;
     setEventFormMode();
     renderEventList();
     document.getElementById("eventName").focus();
+  }
+
+  async function toggleVenueEventVisibility(id) {
+    const eventItem = state.events.find((item) => item.id === id);
+    if (!eventItem) return;
+    state.events = state.events.map((item) => (
+      item.id === id ? { ...item, visibleOnSignage: item.visibleOnSignage !== true } : item
+    ));
+    await selectVenueDate(eventItem.date || currentDateString());
   }
 
   function renderMediaList(key, mountId) {
@@ -753,18 +1052,32 @@
       const pageText = isPdfMedia(media) && media.pageCount ? ` / ${media.pageCount}ページ` : "";
       const sourceText = isSampleMedia(media) ? "サンプル画像" : formatBytes(media.size || 0);
       text.appendChild(createEl("small", "", `${media.type || "file"} / ${sourceText}${pageText}`));
+      const actions = createEl("div", "media-item-actions");
+      const upButton = createEl("button", "", "↑");
+      upButton.type = "button";
+      upButton.disabled = index === 0;
+      upButton.title = "上へ移動";
+      upButton.addEventListener("click", () => moveMedia(key, index, -1));
+      const downButton = createEl("button", "", "↓");
+      downButton.type = "button";
+      downButton.disabled = index === items.length - 1;
+      downButton.title = "下へ移動";
+      downButton.addEventListener("click", () => moveMedia(key, index, 1));
       const button = createEl("button", "", "削除");
       button.type = "button";
       button.addEventListener("click", () => removeMedia(key, media.id));
-      row.append(text, button);
+      actions.append(upButton, downButton, button);
+      row.append(text, actions);
       mount.appendChild(row);
     });
   }
 
   function renderEventList() {
     const mount = document.getElementById("eventList");
+    renderVenueDateTabs();
     mount.replaceChildren();
-    const events = sortEvents(state.events);
+    const targetDate = state.venueDate || currentDateString();
+    const events = sortEvents(state.events).filter((event) => (event.date || currentDateString()) === targetDate);
     if (!events.length) {
       mount.appendChild(createEl("p", "panel-note", "会場案内は空です。必要な行を追加してください。"));
       return;
@@ -772,10 +1085,14 @@
     events.forEach((event) => {
       const row = createEl("div", "event-row");
       row.classList.toggle("is-editing", event.id === editingEventId);
+      row.classList.toggle("is-visible-on-signage", event.visibleOnSignage === true);
       const text = createEl("div");
-      text.appendChild(createEl("strong", "", `${event.time}　${displayVenueName(event.venue)}`));
+      text.appendChild(createEl("strong", "", `${event.date || currentDateString()}　${event.time}　${formatVenueLines(event.venue)}`));
       text.appendChild(createEl("small", "", event.name));
       const actions = createEl("div", "event-row-actions");
+      const showButton = createEl("button", "", event.visibleOnSignage === true ? "表示中" : "表示");
+      showButton.type = "button";
+      showButton.addEventListener("click", () => toggleVenueEventVisibility(event.id));
       const editButton = createEl("button", "", event.id === editingEventId ? "編集中" : "編集");
       editButton.type = "button";
       editButton.addEventListener("click", () => startEventEdit(event.id));
@@ -788,9 +1105,30 @@
         renderEventList();
         await renderAdminPreview();
       });
-      actions.append(editButton, deleteButton);
+      actions.append(showButton, editButton, deleteButton);
       row.append(text, actions);
       mount.appendChild(row);
+    });
+  }
+
+  function renderVenueDateTabs() {
+    const mount = document.getElementById("venueDateTabs");
+    if (!mount) return;
+    const selectedDate = state.venueDate || currentDateString();
+    const counts = new Map();
+    state.events.forEach((event) => {
+      const date = event.date || currentDateString();
+      counts.set(date, (counts.get(date) || 0) + 1);
+    });
+    mount.replaceChildren();
+    venueTabDates().forEach((date, index) => {
+      const button = createEl("button", "venue-date-tab", `${index === 0 ? "本日 " : ""}${shortDateLabel(date)} (${counts.get(date) || 0})`);
+      button.type = "button";
+      button.role = "tab";
+      button.ariaSelected = String(date === selectedDate);
+      button.classList.toggle("is-active", date === selectedDate);
+      button.addEventListener("click", () => selectVenueDate(date));
+      mount.appendChild(button);
     });
   }
 
@@ -811,11 +1149,230 @@
     document.getElementById(isAd2 ? "ad2LandscapeControls" : "adLandscapeControls").classList.toggle("is-hidden", !isLandscape);
   }
 
+  function parseCsvRows(text) {
+    const rows = [];
+    let row = [];
+    let field = "";
+    let quoted = false;
+    for (let index = 0; index < text.length; index += 1) {
+      const char = text[index];
+      const next = text[index + 1];
+      if (quoted) {
+        if (char === "\"" && next === "\"") {
+          field += "\"";
+          index += 1;
+        } else if (char === "\"") {
+          quoted = false;
+        } else {
+          field += char;
+        }
+      } else if (char === "\"") {
+        quoted = true;
+      } else if (char === ",") {
+        row.push(field);
+        field = "";
+      } else if (char === "\n") {
+        row.push(field.replace(/\r$/, ""));
+        rows.push(row);
+        row = [];
+        field = "";
+      } else {
+        field += char;
+      }
+    }
+    if (field || row.length) {
+      row.push(field.replace(/\r$/, ""));
+      rows.push(row);
+    }
+    return rows.filter((item) => item.some((cell) => String(cell || "").trim()));
+  }
+
+  function csvHeaderIndexes(headers) {
+    const pairs = {
+      table: "\u30c6\u30fc\u30d6\u30eb",
+      name: "\u540d\u524d",
+      company: "\u4f1a\u793e\u540d",
+      status: "\u30b9\u30c6\u30fc\u30bf\u30b9",
+      startDate: "\u958b\u59cb\u65e5",
+      startTime: "\u958b\u59cb\u6642\u523b",
+      location: "\u5834\u6240",
+      section: "\u30bb\u30af\u30b7\u30e7\u30f3",
+      groupName: "\u30b0\u30eb\u30fc\u30d7\u540d"
+    };
+    return Object.fromEntries(Object.entries(pairs).map(([key, label]) => [key, headers.indexOf(label)]));
+  }
+
+  function csvValue(row, indexes, key, fallbackIndex = -1) {
+    const index = indexes[key] >= 0 ? indexes[key] : fallbackIndex;
+    return index >= 0 ? String(row[index] || "").trim() : "";
+  }
+
+  function normalizeCsvTime(value) {
+    return normalizeTimeString(String(value || "").trim().slice(0, 5));
+  }
+
+  function venueEventsFromCsv(text) {
+    const rows = parseCsvRows(text);
+    const headerIndex = rows.findIndex((row) => row.length > 20 && row.some((cell) => cell === "\u4e88\u7d04ID"));
+    if (headerIndex < 0) return [];
+    const indexes = csvHeaderIndexes(rows[headerIndex]);
+    return rows.slice(headerIndex + 1).map((row) => {
+      const status = csvValue(row, indexes, "status", 24);
+      if (status.includes("\u30ad\u30e3\u30f3\u30bb\u30eb")) return null;
+      const date = normalizeDateString(csvValue(row, indexes, "startDate", 37)) || state.venueDate || currentDateString();
+      const time = normalizeCsvTime(csvValue(row, indexes, "startTime", 38));
+      const venue = displayVenueName(cleanText(csvValue(row, indexes, "table", 10) || csvValue(row, indexes, "section", 47), 120));
+      const location = cleanText(csvValue(row, indexes, "location"), 60) || venueLocationFor(venue);
+      const name = cleanMultilineText(csvValue(row, indexes, "groupName", 50) || csvValue(row, indexes, "company", 14) || csvValue(row, indexes, "name", 12), 240);
+      if (!time || !venue || !name) return null;
+      return {
+        id: crypto.randomUUID(),
+        date,
+        visibleOnSignage: false,
+        time,
+        venue,
+        location,
+        name
+      };
+    }).filter(Boolean);
+  }
+
+  async function readCsvFile(file) {
+    const buffer = await file.arrayBuffer();
+    const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+    const replacementCount = (utf8.match(/\uFFFD/g) || []).length;
+    if (replacementCount < 3) return utf8;
+    try {
+      return new TextDecoder("shift_jis", { fatal: false }).decode(buffer);
+    } catch {
+      return utf8;
+    }
+  }
+
+  async function importVenueCsv() {
+    const input = document.getElementById("venueCsvUpload");
+    const status = document.getElementById("venueCsvImportStatus");
+    const file = input?.files?.[0];
+    if (!file) {
+      if (status) status.textContent = "CSV file is not selected.";
+      return;
+    }
+    try {
+      const events = sortEvents(venueEventsFromCsv(await readCsvFile(file)));
+      if (!events.length) {
+        if (status) status.textContent = "No venue events were found.";
+        return;
+      }
+      const merged = mergeImportedVenueEvents(events);
+      state.events = merged.events;
+      state.venueDate = events[0].date || state.venueDate || currentDateString();
+      const previewDate = document.getElementById("previewDate");
+      const eventDate = document.getElementById("eventDate");
+      if (previewDate) previewDate.value = state.venueDate;
+      if (eventDate) eventDate.value = state.venueDate;
+      resetEventForm();
+      saveState();
+      renderEventList();
+      await renderAdminPreview();
+      if (status) status.textContent = `${events.length} events imported. ${merged.updatedDateCount} dates updated.`;
+    } catch (error) {
+      console.warn("CSV import failed", error);
+      if (status) status.textContent = "CSV import failed.";
+    }
+  }
+
+  function isAdminAuthenticated() {
+    return sessionStorage.getItem(AUTH_KEY) === "true";
+  }
+
+  async function fetchAuthStatus() {
+    try {
+      const csrfToken = sessionStorage.getItem(AUTH_CSRF_KEY) || "";
+      const response = await fetch(`${AUTH_API_URL}?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: csrfToken ? { "X-CSRF-Token": csrfToken } : {}
+      });
+      if (!response.ok) return false;
+      const result = await response.json();
+      if (result?.authenticated === true && result.csrfToken) {
+        sessionStorage.setItem(AUTH_KEY, "true");
+        sessionStorage.setItem(AUTH_CSRF_KEY, result.csrfToken);
+        return true;
+      }
+    } catch (error) {
+      console.warn("Failed to check admin session", error);
+    }
+    sessionStorage.removeItem(AUTH_KEY);
+    sessionStorage.removeItem(AUTH_CSRF_KEY);
+    return false;
+  }
+
+  async function loginAdmin(password) {
+    const response = await fetch(AUTH_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password })
+    });
+    if (!response.ok) return false;
+    const result = await response.json();
+    if (result?.authenticated !== true || !result.csrfToken) return false;
+    sessionStorage.setItem(AUTH_KEY, "true");
+    sessionStorage.setItem(AUTH_CSRF_KEY, result.csrfToken);
+    return true;
+  }
+
+  function revealAdmin() {
+    document.body.classList.remove("auth-locked");
+    document.getElementById("loginApp")?.classList.add("is-hidden");
+  }
+
+  async function setupAdminAuth(onAuthenticated) {
+    const loginForm = document.getElementById("loginForm");
+    if (!loginForm) {
+      onAuthenticated();
+      return;
+    }
+    if (isAdminAuthenticated() && await fetchAuthStatus()) {
+      revealAdmin();
+      onAuthenticated();
+      return;
+    }
+    const passwordInput = document.getElementById("loginPassword");
+    const error = document.getElementById("loginError");
+    loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (error) error.textContent = "";
+      const submitButton = loginForm.querySelector('button[type="submit"]');
+      if (submitButton) submitButton.disabled = true;
+      if (await loginAdmin(passwordInput.value)) {
+        revealAdmin();
+        onAuthenticated();
+        return;
+      }
+      if (error) error.textContent = "Invalid password.";
+      passwordInput.select();
+      if (submitButton) submitButton.disabled = false;
+    });
+    passwordInput?.focus();
+  }
+
+  function syncAdminPageChrome() {
+    const adminScreen = document.body?.dataset?.adminScreen;
+    if (!adminScreen) return;
+    previewScreen = adminScreen;
+    document.querySelectorAll("[data-preview-screen]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.previewScreen === adminScreen);
+    });
+  }
+
   function setupAdmin() {
+    syncAdminPageChrome();
     populateVenues();
     document.getElementById("adSlideSeconds").value = state.slideSeconds.ad;
     document.getElementById("ad2SlideSeconds").value = state.slideSeconds.ad2;
     document.getElementById("venueSlideSeconds").value = state.slideSeconds.venue;
+    document.getElementById("eventDate").value = state.venueDate || currentDateString();
+    document.getElementById("previewDate").value = state.venueDate || currentDateString();
     document.getElementById(state.adLayout === "landscape" ? "adLayoutLandscape" : "adLayoutPortrait").checked = true;
     document.getElementById(state.ad2Layout === "landscape" ? "ad2LayoutLandscape" : "ad2LayoutPortrait").checked = true;
     document.getElementById(state.venueDisplayMode === "all" ? "venueModeAll" : "venueModeAuto").checked = true;
@@ -825,6 +1382,7 @@
     setEventFormMode();
     syncAdLayoutControls();
     syncAdLayoutControls("ad2");
+    migrateLocalMediaToServer();
 
     document.getElementById("adPortraitUpload").addEventListener("change", (event) => {
       handleUpload(event.target.files, "adMedia");
@@ -924,22 +1482,40 @@
       await renderAdminPreview();
     });
 
+    document.getElementById("previewDate").addEventListener("change", async (event) => {
+      state.venueDate = normalizeDateString(event.target.value) || currentDateString();
+      document.getElementById("eventDate").value = state.venueDate;
+      saveState();
+      renderEventList();
+      await renderAdminPreview();
+    });
+
+    document.getElementById("eventVenue").addEventListener("change", (event) => {
+      const locationInput = document.getElementById("eventLocation");
+      if (!locationInput) return;
+      locationInput.value = venueLocationFor(event.target.value);
+    });
+
     document.getElementById("eventForm").addEventListener("submit", async (event) => {
       event.preventDefault();
-      const time = document.getElementById("eventTime").value;
-      const venue = document.getElementById("eventVenue").value;
-      const name = document.getElementById("eventName").value.trim();
+      const date = normalizeDateString(document.getElementById("eventDate").value) || currentDateString();
+      const time = normalizeTimeString(document.getElementById("eventTime").value);
+      const venue = cleanText(document.getElementById("eventVenue").value, 120);
+      const location = cleanText(document.getElementById("eventLocation").value, 60) || venueLocationFor(venue);
+      const name = cleanMultilineText(document.getElementById("eventName").value, 240);
       if (!time || !venue || !name) return;
+      state.venueDate = date;
       if (editingEventId) {
         state.events = state.events.map((item) => (
-          item.id === editingEventId ? { ...item, time, venue, name } : item
+          item.id === editingEventId ? { ...item, date, time, venue, location, name, visibleOnSignage: item.visibleOnSignage === true } : item
         ));
       } else {
-        state.events.push({ id: crypto.randomUUID(), time, venue, name });
+        state.events.push({ id: crypto.randomUUID(), date, visibleOnSignage: false, time, venue, location, name });
       }
       state.events = sortEvents(state.events);
       saveState();
       resetEventForm();
+      syncVenueDateInputs();
       renderEventList();
       await renderAdminPreview();
     });
@@ -950,6 +1526,8 @@
     });
 
     document.getElementById("previewTime").addEventListener("change", renderAdminPreview);
+
+    document.getElementById("importVenueCsv")?.addEventListener("click", importVenueCsv);
 
     document.getElementById("loadSampleEvents").addEventListener("click", async () => {
       state.events = cloneSampleEvents();
@@ -983,7 +1561,13 @@
   async function renderAdminPreview() {
     const mount = document.getElementById("screenPreview");
     if (!mount) return;
-    await renderSignage(previewScreen, mount, {
+    let frame = mount.querySelector(".monitor-preview-frame");
+    if (!frame) {
+      frame = createEl("div", "monitor-preview-frame");
+      mount.replaceChildren(frame);
+    }
+    await renderSignage(previewScreen, frame, {
+      previewDate: document.getElementById("previewDate").value || state.venueDate || currentDateString(),
       previewTime: document.getElementById("previewTime").value || currentTimeString()
     });
   }
@@ -1071,6 +1655,31 @@
     return object;
   }
 
+  async function renderPdfImageFrame(wrap, media, nativeUrl) {
+    try {
+      const pdfImageUrl = await renderPdfPageUrl(media, media.pageNumber || 1);
+      if (!pdfImageUrl) throw new Error("PDF image render returned empty URL");
+      const pageInfo = await getPdfPageInfo(media, media.pageNumber || 1);
+      if (pageInfo) {
+        wrap.style.setProperty("--pdf-page-ratio", `${pageInfo.width} / ${pageInfo.height}`);
+      }
+      const image = document.createElement("img");
+      image.className = "media-fit-width";
+      image.src = pdfImageUrl;
+      image.alt = media.pageNumber ? `${media.name} ${media.pageNumber}` : media.name;
+      wrap.appendChild(image);
+    } catch (error) {
+      console.warn("PDF image render failed", error);
+      try {
+        wrap.appendChild(await createNativePdfObject(media, nativeUrl));
+      } catch (nativeError) {
+        console.warn("Native PDF display setup failed", nativeError);
+        wrap.appendChild(emptyMediaMessage(media.name));
+      }
+    }
+    return wrap;
+  }
+
   async function createMediaFrame(media, fallbackText) {
     const wrap = createEl("div", "media-frame-wrap");
     if (!media) {
@@ -1084,6 +1693,7 @@
     }
     if (isPdfMedia(media)) {
       wrap.classList.add("pdf-native-frame");
+      return renderPdfImageFrame(wrap, media, url);
       try {
         const pageInfo = await getPdfPageInfo(media, media.pageNumber || 1);
         if (pageInfo) {
@@ -1164,16 +1774,19 @@
     return screen;
   }
 
-  function getVenueEvents(referenceTime) {
+  function getVenueEvents(referenceTime, referenceDate) {
     const period = periodForTime(referenceTime);
+    const targetDate = normalizeDateString(referenceDate) || currentDateString();
+    const datedEvents = sortEvents(state.events).filter((event) => (
+      event.visibleOnSignage === true && (event.date || currentDateString()) === targetDate
+    ));
     if (state.venueDisplayMode === "all") {
-      const allEvents = sortEvents(state.events);
       return {
         period: "all",
-        events: state.venueEndedMode === "hide" ? allEvents.filter((event) => !isEventEnded(event, referenceTime)) : allEvents
+        events: state.venueEndedMode === "hide" ? datedEvents.filter((event) => !isEventEnded(event, referenceTime)) : datedEvents
       };
     }
-    const samePeriod = sortEvents(state.events).filter((event) => periodForTime(event.time) === period);
+    const samePeriod = datedEvents.filter((event) => periodForTime(event.time) === period);
     return {
       period,
       events: samePeriod
@@ -1197,10 +1810,11 @@
 
   function venueRenderKey(options = {}) {
     const referenceTime = options.previewTime || params.get("time") || currentTimeString();
-    const { period, events } = getVenueEvents(referenceTime);
+    const referenceDate = dateForVenue(options);
+    const { period, events } = getVenueEvents(referenceTime, referenceDate);
     const visibleEvents = pagedEvents(events);
-    const eventKey = visibleEvents.map((event) => `${event.id}:${event.time}:${event.venue}:${event.name}:${isEventInActiveWindow(event, referenceTime) ? "active" : "idle"}`).join(",");
-    return ["venue", state.venueDisplayMode, state.venueEndedMode, state.venueTheme, formatDate(), referenceTime, period, state.slideSeconds.venue, events.length, venuePageIndex(events), eventKey].join("|");
+    const eventKey = visibleEvents.map((event) => `${event.id}:${event.visibleOnSignage}:${event.time}:${event.venue}:${event.name}:${isEventInActiveWindow(event, referenceTime) ? "active" : "idle"}`).join(",");
+    return ["venue", state.venueDisplayMode, state.venueEndedMode, state.venueTheme, referenceDate, referenceTime, period, state.slideSeconds.venue, events.length, venuePageIndex(events), eventKey].join("|");
   }
 
   function renderKeyFor(type, options = {}) {
@@ -1209,15 +1823,15 @@
 
   function renderVenueScreen(options = {}) {
     const referenceTime = options.previewTime || params.get("time") || currentTimeString();
-    const { period, events } = getVenueEvents(referenceTime);
+    const referenceDate = dateForVenue(options);
+    const { period, events } = getVenueEvents(referenceTime, referenceDate);
     const visibleEvents = pagedEvents(events);
     const themeClass = state.venueTheme === "dark" ? "dark-mode" : "light-mode";
     const screen = createEl("section", `signage-screen venue-screen ${themeClass}`);
 
     const header = createEl("header", "venue-header");
-    const title = createEl("h1", "", "本日の会場案内");
-    const date = createEl("p", "venue-date", `${formatDate()}　${periodLabel(period)}`);
-    header.append(title, date);
+    const title = createEl("h1", "", formatVenueTitleDate(dateObjectFromString(referenceDate)));
+    header.appendChild(title);
 
     const list = createEl("div", "venue-list");
     if (!visibleEvents.length) {
@@ -1237,9 +1851,9 @@
         card.appendChild(time);
         const detail = createEl("div", "venue-detail");
         const roomLine = createEl("div", "venue-room-line");
-        const location = venueLocationFor(event.venue);
+        const location = eventLocationFor(event);
         if (location) roomLine.appendChild(createEl("span", "venue-location-badge", location));
-        roomLine.appendChild(createEl("div", "venue-room", displayVenueName(event.venue)));
+        roomLine.appendChild(createEl("div", "venue-room", formatVenueLines(event.venue)));
         detail.appendChild(roomLine);
         detail.appendChild(createEl("div", "venue-divider"));
         detail.appendChild(createEl("div", "venue-name", event.name));
@@ -1282,11 +1896,24 @@
     const mount = document.getElementById("viewerApp");
     await renderSignage(type, mount);
     window.setInterval(() => renderSignage(type, mount), 1000);
+    window.setInterval(async () => {
+      await refreshSharedState();
+      await renderSignage(type, mount);
+    }, 5000);
   }
 
-  if (validScreens.has(screenParam)) {
-    setupViewer(screenParam);
-  } else {
-    setupAdmin();
+  async function boot() {
+    const isViewer = validScreens.has(screenParam);
+    const sharedState = await fetchSharedState();
+    state = sharedState || loadState();
+    ensureInitialAdSamples();
+    if (!sharedState && !isViewer) saveState();
+    if (isViewer) {
+      setupViewer(screenParam);
+      return;
+    }
+    await setupAdminAuth(setupAdmin);
   }
+
+  boot();
 })();
