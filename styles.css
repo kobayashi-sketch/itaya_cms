@@ -205,6 +205,7 @@ body:not(.auth-locked) .login-app,
 
 body[data-admin-screen="ad1"] [data-admin-nav="ad1"],
 body[data-admin-screen="ad2"] [data-admin-nav="ad2"],
+body[data-admin-screen="marble"] [data-admin-nav="marble"],
 body[data-admin-screen="venue"] [data-admin-nav="venue"],
 body[data-admin-screen="venue-auto"] [data-admin-nav="venue-auto"],
 body[data-admin-screen="report"] [data-admin-nav="report"] {
@@ -214,6 +215,7 @@ body[data-admin-screen="report"] [data-admin-nav="report"] {
 
 body[data-admin-screen="ad1"] [data-admin-panel]:not([data-admin-panel="ad1"]),
 body[data-admin-screen="ad2"] [data-admin-panel]:not([data-admin-panel="ad2"]),
+body[data-admin-screen="marble"] [data-admin-panel]:not([data-admin-panel="marble"]),
 body[data-admin-screen="venue"] [data-admin-panel]:not([data-admin-panel="venue"]),
 body[data-admin-screen="venue-auto"] [data-admin-panel]:not([data-admin-panel="venue-auto"]) {
   display: none;
@@ -221,6 +223,7 @@ body[data-admin-screen="venue-auto"] [data-admin-panel]:not([data-admin-panel="v
 
 body[data-admin-screen="ad1"] [data-preview-screen]:not([data-preview-screen="ad1"]),
 body[data-admin-screen="ad2"] [data-preview-screen]:not([data-preview-screen="ad2"]),
+body[data-admin-screen="marble"] [data-preview-screen]:not([data-preview-screen="marble"]),
 body[data-admin-screen="venue"] [data-preview-screen]:not([data-preview-screen="venue"]),
 body[data-admin-screen="venue-auto"] [data-preview-screen]:not([data-preview-screen="venue-auto"]) {
   display: none;
@@ -687,6 +690,64 @@ body[data-admin-screen] .segmented {
   background: var(--itaya-navy);
 }
 
+.marble-period-choice {
+  grid-template-columns: repeat(3, minmax(116px, auto));
+}
+
+.marble-active-period-label {
+  margin-top: -6px;
+  color: var(--gold);
+}
+
+.marble-preview-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 0 16px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.marble-preview-links a {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--itaya-navy);
+  background: #fff;
+  text-decoration: none;
+}
+
+.marble-preview-links a.is-active {
+  color: #fff;
+  border-color: var(--itaya-navy);
+  background: var(--itaya-navy);
+}
+
+.marble-lunch-eyecatch-settings {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--itaya-navy);
+  font-weight: 900;
+}
+
+.check-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--itaya-navy);
+}
+
 .media-mode-panel {
   display: block;
 }
@@ -850,7 +911,7 @@ body[data-admin-screen] .segmented {
 
 .segmented {
   display: inline-grid;
-  grid-template-columns: repeat(3, minmax(58px, 1fr));
+  grid-template-columns: repeat(4, minmax(58px, 1fr));
   overflow: hidden;
   border: 1px solid rgba(17, 27, 75, 0.16);
   border-radius: 6px;
@@ -1075,6 +1136,105 @@ body[data-admin-screen] .segmented {
   width: min(42%, 360px);
   max-height: 84%;
   object-fit: contain;
+}
+
+.signage-screen.ad-screen.marble-screen {
+  position: relative;
+  display: block;
+  color: #fff;
+  background:
+    url("./assets/marble/signage_waku_marble.png") center / 100% 100% no-repeat,
+    #000;
+}
+
+.marble-stage {
+  position: absolute;
+  inset: 10.2315% 0 10.2778%;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  background: transparent;
+}
+
+.marble-stage.landscape .media-frame-wrap {
+  flex: 0 0 50%;
+  width: 100%;
+  height: 50%;
+  background: transparent;
+}
+
+.marble-stage.portrait {
+  display: grid;
+  place-items: center;
+}
+
+.marble-stage.portrait .media-frame-wrap {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+.marble-stage.portrait .media-frame-wrap .media-fit-width {
+  inline-size: 100% !important;
+  block-size: 100% !important;
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  object-fit: contain;
+}
+
+.marble-stage .media-frame-wrap.pdf-native-frame {
+  aspect-ratio: auto;
+}
+
+.marble-lunch-badge {
+  position: absolute;
+  top: 7.15%;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: min(50%, 540px);
+  min-height: 28px;
+  padding: 5px 18px 6px;
+  color: #a51d16;
+  text-align: center;
+  white-space: nowrap;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)),
+    rgba(214, 181, 104, 0.74);
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
+  border-bottom: 1px solid rgba(117, 83, 35, 0.22);
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.11);
+  transform: translateX(-50%);
+}
+
+.marble-lunch-badge-kicker {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #a51d16;
+}
+
+.marble-lunch-badge-text {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  color: #b01814;
+  animation: marble-lunch-text-pulse 2.8s ease-in-out infinite;
+}
+
+.marble-screen .empty-media {
+  min-height: 0;
+  color: rgba(255, 255, 255, 0.62);
+  background: #000;
+  border-color: rgba(185, 154, 88, 0.48);
 }
 
 .empty-media,
@@ -1487,6 +1647,19 @@ body[data-admin-page="venue"] #screenPreview .venue-room {
   }
 }
 
+@keyframes marble-lunch-text-pulse {
+  0%,
+  100% {
+    opacity: 0.88;
+    text-shadow: 0 0 0 rgba(176, 24, 20, 0);
+  }
+
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 7px rgba(176, 24, 20, 0.22);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .signage-screen.is-entering,
   .signage-screen.is-visible,
@@ -1494,7 +1667,8 @@ body[data-admin-page="venue"] #screenPreview .venue-room {
   .media-frame-wrap .media-fit-width,
   .venue-card,
   .venue-card.is-active-window::after,
-  .venue-card.is-active-window .venue-time span {
+  .venue-card.is-active-window .venue-time span,
+  .marble-lunch-badge-text {
     animation: none;
     opacity: 1;
     transform: none;

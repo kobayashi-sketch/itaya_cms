@@ -4,25 +4,30 @@
   const DB_VERSION = 1;
   const STORE_NAME = "media";
   const STATE_API_URL = "./state.php";
-  const AUTH_API_URL = "./login.php";
+  const AUTH_API_URL = "./auth-login.php";
   const UPLOAD_API_URL = "./upload.php";
   const DEFAULT_SLIDE_SECONDS = 5;
   const VENUE_PAGE_SIZE = 10;
   const VENUE_TAB_DAYS = 7;
   const VENUE_TIME_ZONE = "Asia/Tokyo";
+  const MARBLE_TIME_SLOTS = [
+    { id: "morning", suffix: "Morning", label: "10:00〜11:30", start: "10:00", end: "11:30" },
+    { id: "lunch", suffix: "Lunch", label: "11:30〜14:30", start: "11:30", end: "14:30" },
+    { id: "dinner", suffix: "Dinner", label: "14:30〜21:00", start: "14:30", end: "21:00" }
+  ];
   const SLIDE_TRANSITION_MS = 760;
   const PDFJS_BASE_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38";
   const PDFJS_URL = `${PDFJS_BASE_URL}/build/pdf.mjs`;
   const PDFJS_WORKER_URL = `${PDFJS_BASE_URL}/build/pdf.worker.mjs`;
-  const PDF_RENDER_TARGET_WIDTH = 1600;
-  const PDF_RENDER_MAX_PIXELS = 6000000;
+  const PDF_RENDER_TARGET_WIDTH = 3200;
+  const PDF_RENDER_MAX_PIXELS = 12000000;
 
   const params = new URLSearchParams(window.location.search);
   const pageScreen = document.body?.dataset?.screen || window.SIGNAGE_SCREEN || "";
   const screenParam = params.get("screen") || pageScreen;
   const AUTH_KEY = "itaya-signage-admin-auth";
   const AUTH_CSRF_KEY = "itaya-signage-admin-csrf";
-  const validScreens = new Set(["ad", "ad1", "ad2", "ad-portrait", "ad-landscape", "venue"]);
+  const validScreens = new Set(["ad", "ad1", "ad2", "marble", "ad-portrait", "ad-landscape", "venue"]);
   const mediaUrlCache = new Map();
   const pdfPageUrlCache = new Map();
   const pdfDocumentCache = new Map();
@@ -31,7 +36,15 @@
     "sample-ad-portrait-1",
     "sample-ad-portrait-2",
     "sample-ad-landscape-top-1",
-    "sample-ad-landscape-bottom-1"
+    "sample-ad-landscape-bottom-1",
+    "sample-marble-food-menu",
+    "sample-marble-drink-menu",
+    "sample-marble-morning-top",
+    "sample-marble-morning-bottom",
+    "sample-marble-lunch-top",
+    "sample-marble-lunch-bottom",
+    "sample-marble-dinner-top",
+    "sample-marble-dinner-bottom"
   ]);
   let pdfJsPromise;
 
@@ -74,6 +87,131 @@
         isSample: true
       }
     ]
+  };
+
+  const marbleSampleMedia = {
+    landscapeTop: [
+      {
+        id: "sample-marble-lunch-top",
+        name: "signage_lunch.jpg",
+        type: "image/jpeg",
+        size: 0,
+        assetUrl: "./assets/marble/defaults/signage_lunch.jpg",
+        isSample: true
+      }
+    ],
+    landscapeBottom: [
+      {
+        id: "sample-marble-lunch-bottom",
+        name: "signage_Marble_lunch_bottom.pdf",
+        type: "application/pdf",
+        size: 0,
+        pageCount: 2,
+        assetUrl: "./assets/marble/defaults/signage_Marble_lunch_bottom.pdf",
+        isSample: true
+      }
+    ],
+    periods: {
+      morning: {
+        landscapeTop: [
+          {
+            id: "sample-marble-morning-top",
+            name: "signage_Marble_morning.pdf",
+            type: "application/pdf",
+            size: 0,
+            pageCount: 2,
+            assetUrl: "./assets/marble/defaults/signage_Marble_morning.pdf",
+            isSample: true
+          }
+        ],
+        landscapeBottom: [
+          {
+            id: "sample-marble-morning-bottom",
+            name: "signage_Marble_alldaydining.jpg",
+            type: "image/jpeg",
+            size: 0,
+            assetUrl: "./assets/marble/defaults/signage_Marble_alldaydining.jpg",
+            isSample: true
+          }
+        ]
+      },
+      lunch: {
+        landscapeTop: [
+          {
+            id: "sample-marble-lunch-top",
+            name: "signage_lunch.jpg",
+            type: "image/jpeg",
+            size: 0,
+            assetUrl: "./assets/marble/defaults/signage_lunch.jpg",
+            isSample: true
+          }
+        ],
+        landscapeBottom: [
+          {
+            id: "sample-marble-lunch-bottom",
+            name: "signage_Marble_lunch_bottom.pdf",
+            type: "application/pdf",
+            size: 0,
+            pageCount: 2,
+            assetUrl: "./assets/marble/defaults/signage_Marble_lunch_bottom.pdf",
+            isSample: true
+          }
+        ]
+      },
+      dinner: {
+        landscapeTop: [
+          {
+            id: "sample-marble-dinner-top",
+            name: "signage_Marble_alldaydining.jpg",
+            type: "image/jpeg",
+            size: 0,
+            assetUrl: "./assets/marble/defaults/signage_Marble_alldaydining.jpg",
+            isSample: true
+          }
+        ],
+        landscapeBottom: [
+          {
+            id: "sample-marble-dinner-bottom",
+            name: "signage_Marble_drink-dinner.pdf",
+            type: "application/pdf",
+            size: 0,
+            pageCount: 4,
+            assetUrl: "./assets/marble/defaults/signage_Marble_drink-dinner.pdf",
+            isSample: true
+          }
+        ]
+      }
+    }
+  };
+
+  const adSlotConfigs = {
+    ad1: {
+      layoutKey: "adLayout",
+      portraitKey: "adMedia",
+      topKey: "adLandscapeTop",
+      bottomKey: "adLandscapeBottom",
+      secondsKey: "ad",
+      portraitControlsId: "adPortraitControls",
+      landscapeControlsId: "adLandscapeControls"
+    },
+    ad2: {
+      layoutKey: "ad2Layout",
+      portraitKey: "ad2Media",
+      topKey: "ad2LandscapeTop",
+      bottomKey: "ad2LandscapeBottom",
+      secondsKey: "ad2",
+      portraitControlsId: "ad2PortraitControls",
+      landscapeControlsId: "ad2LandscapeControls"
+    },
+    marble: {
+      layoutKey: "marbleLayout",
+      portraitKey: "marbleMedia",
+      topKey: "marbleLandscapeTop",
+      bottomKey: "marbleLandscapeBottom",
+      secondsKey: "marble",
+      portraitControlsId: "marblePortraitControls",
+      landscapeControlsId: "marbleLandscapeControls"
+    }
   };
 
   const venues = [
@@ -240,13 +378,102 @@
     };
   }
 
+  function cloneMarbleSampleMedia() {
+    const periods = Object.fromEntries(MARBLE_TIME_SLOTS.map((slot) => {
+      const source = marbleSampleMedia.periods?.[slot.id] || marbleSampleMedia;
+      return [slot.id, {
+        portrait: cloneMediaItems(source.portrait || []),
+        landscapeTop: cloneMediaItems(source.landscapeTop || []),
+        landscapeBottom: cloneMediaItems(source.landscapeBottom || [])
+      }];
+    }));
+    return {
+      landscapeTop: cloneMediaItems(marbleSampleMedia.landscapeTop),
+      landscapeBottom: cloneMediaItems(marbleSampleMedia.landscapeBottom),
+      periods
+    };
+  }
+
+  function marbleSlotForId(id) {
+    return MARBLE_TIME_SLOTS.find((slot) => slot.id === id) || MARBLE_TIME_SLOTS[1];
+  }
+
+  function marbleKeysForPeriod(periodId) {
+    const { suffix } = marbleSlotForId(periodId);
+    return {
+      layout: `marble${suffix}Layout`,
+      portrait: `marble${suffix}Media`,
+      top: `marble${suffix}LandscapeTop`,
+      bottom: `marble${suffix}LandscapeBottom`
+    };
+  }
+
+  function marbleMediaKeys() {
+    return MARBLE_TIME_SLOTS.flatMap((slot) => {
+      const keys = marbleKeysForPeriod(slot.id);
+      return [keys.portrait, keys.top, keys.bottom];
+    });
+  }
+
+  function selectedMarblePeriodId() {
+    return marbleSlotForId(state.marbleAdminPeriod).id;
+  }
+
+  function selectedMarbleKeys() {
+    return marbleKeysForPeriod(selectedMarblePeriodId());
+  }
+
+  function marblePeriodForTime(time = currentTimeString()) {
+    const minutes = minutesFromTime(time);
+    const activeSlot = MARBLE_TIME_SLOTS.find((slot) => (
+      minutes >= minutesFromTime(slot.start) && minutes < minutesFromTime(slot.end)
+    ));
+    if (activeSlot) return activeSlot.id;
+    if (minutes < minutesFromTime(MARBLE_TIME_SLOTS[0].start)) return MARBLE_TIME_SLOTS[0].id;
+    return MARBLE_TIME_SLOTS[MARBLE_TIME_SLOTS.length - 1].id;
+  }
+
+  function marblePeriodForRender(options = {}) {
+    if (options.marblePeriodId) return marbleSlotForId(options.marblePeriodId).id;
+    const queryPeriod = params.get("marblePeriod") || params.get("period");
+    if (queryPeriod) return marbleSlotForId(queryPeriod).id;
+    return marblePeriodForTime(options.previewTime || params.get("time") || currentTimeString());
+  }
+
+  function marblePreviewUrl(periodId) {
+    return `./marble.html?marblePeriod=${encodeURIComponent(marbleSlotForId(periodId).id)}`;
+  }
+
+  function marblePeriodStateFrom(layout, portraitItems, topItems, bottomItems) {
+    return {
+      layout: layout === "portrait" ? "portrait" : "landscape",
+      portrait: dedupeMedia(Array.isArray(portraitItems) ? portraitItems : []),
+      top: dedupeMedia(Array.isArray(topItems) ? topItems : []),
+      bottom: dedupeMedia(Array.isArray(bottomItems) ? bottomItems : [])
+    };
+  }
+
+  function applyMarblePeriodState(target, periodId, periodState) {
+    const keys = marbleKeysForPeriod(periodId);
+    target[keys.layout] = periodState.layout;
+    target[keys.portrait] = cloneMediaItems(periodState.portrait);
+    target[keys.top] = cloneMediaItems(periodState.top);
+    target[keys.bottom] = cloneMediaItems(periodState.bottom);
+  }
+
+  function defaultMarblePeriodState(marbleSamples, periodId = "lunch") {
+    const periodSamples = marbleSamples.periods?.[marbleSlotForId(periodId).id] || marbleSamples;
+    return marblePeriodStateFrom("landscape", periodSamples.portrait || [], periodSamples.landscapeTop, periodSamples.landscapeBottom);
+  }
+
   function isSampleMedia(media) {
     return Boolean(media?.isSample) || sampleMediaIds.has(media?.id);
   }
 
   function defaultState() {
     const samples = cloneAdSampleMedia();
-    return {
+    const marbleSamples = cloneMarbleSampleMedia();
+    const nextState = {
       adMedia: cloneMediaItems(samples.portrait),
       adLandscapeTop: cloneMediaItems(samples.landscapeTop),
       adLandscapeBottom: cloneMediaItems(samples.landscapeBottom),
@@ -255,6 +482,14 @@
       ad2LandscapeTop: cloneMediaItems(samples.landscapeTop),
       ad2LandscapeBottom: cloneMediaItems(samples.landscapeBottom),
       ad2Layout: "landscape",
+      marbleMedia: [],
+      marbleLandscapeTop: cloneMediaItems(marbleSamples.landscapeTop),
+      marbleLandscapeBottom: cloneMediaItems(marbleSamples.landscapeBottom),
+      marbleLayout: "landscape",
+      marbleAdminPeriod: "lunch",
+      marbleLunchBadgeEnabled: true,
+      marbleLunchBadgeText: "ランチタイム開催中",
+      marbleSamplesInitialized: true,
       adSamplesInitialized: true,
       venueDisplayMode: "auto",
       venueEndedMode: "show",
@@ -265,12 +500,15 @@
       slideSeconds: {
         ad: DEFAULT_SLIDE_SECONDS,
         ad2: DEFAULT_SLIDE_SECONDS,
+        marble: DEFAULT_SLIDE_SECONDS,
         venue: DEFAULT_SLIDE_SECONDS,
         adPortrait: DEFAULT_SLIDE_SECONDS,
         adLandscape: DEFAULT_SLIDE_SECONDS
       },
       events: cloneSampleEvents()
     };
+    MARBLE_TIME_SLOTS.forEach((slot) => applyMarblePeriodState(nextState, slot.id, defaultMarblePeriodState(marbleSamples, slot.id)));
+    return nextState;
   }
 
   function normalizeStoredState(parsed) {
@@ -282,7 +520,18 @@
       const legacyLandscape = Array.isArray(parsed.adLandscape) ? parsed.adLandscape : [];
       const adMedia = Array.isArray(parsed.adMedia) ? parsed.adMedia : legacyMedia;
       const venueDate = normalizeDateString(parsed.venueDate);
-      return {
+      const samples = cloneAdSampleMedia();
+      const marbleSamples = cloneMarbleSampleMedia();
+      const hasMarbleMedia = Object.prototype.hasOwnProperty.call(parsed, "marbleMedia");
+      const hasMarbleTop = Object.prototype.hasOwnProperty.call(parsed, "marbleLandscapeTop");
+      const hasMarbleBottom = Object.prototype.hasOwnProperty.call(parsed, "marbleLandscapeBottom");
+      const legacyMarblePeriod = marblePeriodStateFrom(
+        parsed.marbleLayout,
+        hasMarbleMedia && Array.isArray(parsed.marbleMedia) ? parsed.marbleMedia : [],
+        hasMarbleTop && Array.isArray(parsed.marbleLandscapeTop) ? parsed.marbleLandscapeTop : cloneMediaItems(marbleSamples.landscapeTop),
+        hasMarbleBottom && Array.isArray(parsed.marbleLandscapeBottom) ? parsed.marbleLandscapeBottom : cloneMediaItems(marbleSamples.landscapeBottom)
+      );
+      const nextState = {
         adMedia: dedupeMedia(adMedia),
         adLandscapeTop: dedupeMedia(Array.isArray(parsed.adLandscapeTop) ? parsed.adLandscapeTop : legacyLandscape.filter((_, index) => index % 2 === 0)),
         adLandscapeBottom: dedupeMedia(Array.isArray(parsed.adLandscapeBottom) ? parsed.adLandscapeBottom : legacyLandscape.filter((_, index) => index % 2 === 1)),
@@ -291,6 +540,14 @@
         ad2LandscapeTop: dedupeMedia(Array.isArray(parsed.ad2LandscapeTop) ? parsed.ad2LandscapeTop : []),
         ad2LandscapeBottom: dedupeMedia(Array.isArray(parsed.ad2LandscapeBottom) ? parsed.ad2LandscapeBottom : []),
         ad2Layout: parsed.ad2Layout === "landscape" ? "landscape" : "portrait",
+        marbleMedia: dedupeMedia(hasMarbleMedia && Array.isArray(parsed.marbleMedia) ? parsed.marbleMedia : []),
+        marbleLandscapeTop: dedupeMedia(hasMarbleTop && Array.isArray(parsed.marbleLandscapeTop) ? parsed.marbleLandscapeTop : cloneMediaItems(marbleSamples.landscapeTop)),
+        marbleLandscapeBottom: dedupeMedia(hasMarbleBottom && Array.isArray(parsed.marbleLandscapeBottom) ? parsed.marbleLandscapeBottom : cloneMediaItems(marbleSamples.landscapeBottom)),
+        marbleLayout: parsed.marbleLayout === "portrait" ? "portrait" : "landscape",
+        marbleAdminPeriod: marbleSlotForId(parsed.marbleAdminPeriod).id,
+        marbleLunchBadgeEnabled: parsed.marbleLunchBadgeEnabled !== false,
+        marbleLunchBadgeText: cleanText(parsed.marbleLunchBadgeText || "ランチタイム開催中", 40),
+        marbleSamplesInitialized: parsed.marbleSamplesInitialized === true,
         adSamplesInitialized: parsed.adSamplesInitialized === true,
         venueDisplayMode: parsed.venueDisplayMode === "all" ? "all" : "auto",
         venueEndedMode: parsed.venueEndedMode === "hide" ? "hide" : "show",
@@ -301,12 +558,27 @@
         slideSeconds: {
           ad: normalizeSlideSeconds(parsedSeconds.ad || parsedSeconds.adPortrait || parsedSeconds.adLandscape),
           ad2: normalizeSlideSeconds(parsedSeconds.ad2),
+          marble: normalizeSlideSeconds(parsedSeconds.marble),
           venue: normalizeSlideSeconds(parsedSeconds.venue),
           adPortrait: normalizeSlideSeconds(parsedSeconds.adPortrait),
           adLandscape: normalizeSlideSeconds(parsedSeconds.adLandscape)
         },
         events: Array.isArray(parsed.events) ? parsed.events.map(normalizeEventVenue) : cloneSampleEvents()
       };
+      MARBLE_TIME_SLOTS.forEach((slot) => {
+        const keys = marbleKeysForPeriod(slot.id);
+        const hasPeriodMedia = Object.prototype.hasOwnProperty.call(parsed, keys.portrait);
+        const hasPeriodTop = Object.prototype.hasOwnProperty.call(parsed, keys.top);
+        const hasPeriodBottom = Object.prototype.hasOwnProperty.call(parsed, keys.bottom);
+        const periodState = marblePeriodStateFrom(
+          parsed[keys.layout] || legacyMarblePeriod.layout,
+          hasPeriodMedia && Array.isArray(parsed[keys.portrait]) ? parsed[keys.portrait] : legacyMarblePeriod.portrait,
+          hasPeriodTop && Array.isArray(parsed[keys.top]) ? parsed[keys.top] : legacyMarblePeriod.top,
+          hasPeriodBottom && Array.isArray(parsed[keys.bottom]) ? parsed[keys.bottom] : legacyMarblePeriod.bottom
+        );
+        applyMarblePeriodState(nextState, slot.id, periodState);
+      });
+      return nextState;
   }
 
   function loadState() {
@@ -335,7 +607,11 @@
       state.adLandscapeBottom,
       state.ad2Media,
       state.ad2LandscapeTop,
-      state.ad2LandscapeBottom
+      state.ad2LandscapeBottom,
+      state.marbleMedia,
+      state.marbleLandscapeTop,
+      state.marbleLandscapeBottom,
+      ...marbleMediaKeys().map((key) => state[key])
     ].some((items) => Array.isArray(items) && items.length);
     if (!hasAnyAdMedia) {
       const samples = cloneAdSampleMedia();
@@ -346,9 +622,71 @@
       state.ad2LandscapeTop = cloneMediaItems(samples.landscapeTop);
       state.ad2LandscapeBottom = cloneMediaItems(samples.landscapeBottom);
       state.ad2Layout = "landscape";
+      state.marbleMedia = cloneMediaItems(samples.portrait);
+      state.marbleLandscapeTop = cloneMediaItems(samples.landscapeTop);
+      state.marbleLandscapeBottom = cloneMediaItems(samples.landscapeBottom);
+      state.marbleLayout = "landscape";
+      const marbleSamples = cloneMarbleSampleMedia();
+      MARBLE_TIME_SLOTS.forEach((slot) => applyMarblePeriodState(state, slot.id, defaultMarblePeriodState(marbleSamples, slot.id)));
+      state.marbleAdminPeriod = "lunch";
+      state.marbleLunchBadgeEnabled = true;
+      state.marbleLunchBadgeText = "ランチタイム開催中";
+      state.marbleSamplesInitialized = true;
     }
     state.adSamplesInitialized = true;
     saveState();
+  }
+
+  function hasCustomMedia(items) {
+    return Array.isArray(items) && items.some((media) => !isSampleMedia(media));
+  }
+
+  function ensureInitialMarbleSamples() {
+    if (state.marbleSamplesInitialized === true) return;
+    const samples = cloneMarbleSampleMedia();
+    const topItems = Array.isArray(state.marbleLandscapeTop) ? state.marbleLandscapeTop : [];
+    const bottomItems = Array.isArray(state.marbleLandscapeBottom) ? state.marbleLandscapeBottom : [];
+    let changed = false;
+    if (!hasCustomMedia(topItems) && !topItems.some((media) => media.id === "sample-marble-food-menu")) {
+      state.marbleLandscapeTop = cloneMediaItems(samples.landscapeTop);
+      changed = true;
+    }
+    if (!hasCustomMedia(bottomItems) && !bottomItems.some((media) => media.id === "sample-marble-drink-menu")) {
+      state.marbleLandscapeBottom = cloneMediaItems(samples.landscapeBottom);
+      changed = true;
+    }
+    MARBLE_TIME_SLOTS.forEach((slot) => {
+      const keys = marbleKeysForPeriod(slot.id);
+      const marbleDefault = defaultMarblePeriodState(samples, slot.id);
+      if (!Array.isArray(state[keys.portrait])) state[keys.portrait] = [];
+      if (!Array.isArray(state[keys.top]) || (!hasCustomMedia(state[keys.top]) && !state[keys.top].some(isSampleMedia))) {
+        state[keys.top] = cloneMediaItems(marbleDefault.top);
+        changed = true;
+      }
+      if (!Array.isArray(state[keys.bottom]) || (!hasCustomMedia(state[keys.bottom]) && !state[keys.bottom].some(isSampleMedia))) {
+        state[keys.bottom] = cloneMediaItems(marbleDefault.bottom);
+        changed = true;
+      }
+      if (state[keys.layout] !== "portrait" && state[keys.layout] !== "landscape") {
+        state[keys.layout] = "landscape";
+        changed = true;
+      }
+    });
+    if (!state.marbleAdminPeriod) {
+      state.marbleAdminPeriod = "lunch";
+      changed = true;
+    }
+    if (typeof state.marbleLunchBadgeEnabled !== "boolean") {
+      state.marbleLunchBadgeEnabled = true;
+      changed = true;
+    }
+    if (!state.marbleLunchBadgeText) {
+      state.marbleLunchBadgeText = "ランチタイム開催中";
+      changed = true;
+    }
+    state.marbleSamplesInitialized = true;
+    changed = true;
+    if (changed) saveState();
   }
 
   function saveState() {
@@ -369,6 +707,12 @@
     } catch (error) {
       console.warn("Failed to save shared state", error);
     }
+  }
+
+  async function flushStateToServer() {
+    window.clearTimeout(saveStateTimer);
+    saveStateTimer = 0;
+    await saveStateToServer();
   }
 
   async function fetchSharedState() {
@@ -397,6 +741,12 @@
     return Math.min(120, Math.max(1, Math.round(number)));
   }
 
+  function normalizeAdSlot(type) {
+    if (type === "ad2") return "ad2";
+    if (type === "marble") return "marble";
+    return "ad1";
+  }
+
   function dedupeMedia(items) {
     const seen = new Set();
     return items.filter((item) => {
@@ -407,11 +757,11 @@
   }
 
   function slideMsFor(type) {
-    if (type === "ad2") return normalizeSlideSeconds(state.slideSeconds.ad2) * 1000;
     if (type === "venue") return normalizeSlideSeconds(state.slideSeconds.venue) * 1000;
     if (type === "ad-portrait") return normalizeSlideSeconds(state.slideSeconds.adPortrait || state.slideSeconds.ad) * 1000;
     if (type === "ad-landscape") return normalizeSlideSeconds(state.slideSeconds.adLandscape || state.slideSeconds.ad) * 1000;
-    return normalizeSlideSeconds(state.slideSeconds.ad) * 1000;
+    const slot = normalizeAdSlot(type);
+    return normalizeSlideSeconds(state.slideSeconds[adSlotConfigs[slot].secondsKey]) * 1000;
   }
 
   function slideIndexFor(ms) {
@@ -592,6 +942,7 @@
   async function renderPdfPageUrl(media, pageNumber = 1) {
     const cacheKey = `${media.id}:${pageNumber}`;
     if (pdfPageUrlCache.has(cacheKey)) return pdfPageUrlCache.get(cacheKey);
+    const pdfjsLib = await loadPdfJs();
     const pdf = await getPdfDocument(media);
     if (!pdf) return "";
     const page = await pdf.getPage(pageNumber);
@@ -606,7 +957,23 @@
     canvas.width = Math.floor(viewport.width);
     canvas.height = Math.floor(viewport.height);
     const context = canvas.getContext("2d", { alpha: false });
-    await page.render({ canvasContext: context, viewport }).promise;
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const renderParams = {
+      canvasContext: context,
+      viewport,
+      intent: "print",
+      background: "#fff",
+      renderInteractiveForms: true
+    };
+    if (pdfjsLib.AnnotationMode?.ENABLE !== undefined) {
+      renderParams.annotationMode = pdfjsLib.AnnotationMode.ENABLE;
+    }
+    const optionalContentConfigPromise = pdf.getOptionalContentConfig?.({ intent: "print" });
+    if (optionalContentConfigPromise) {
+      renderParams.optionalContentConfigPromise = optionalContentConfigPromise;
+    }
+    await page.render(renderParams).promise;
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 0.94));
     if (!blob) return "";
     const url = URL.createObjectURL(blob);
@@ -902,7 +1269,11 @@
       "adLandscapeBottom",
       "ad2Media",
       "ad2LandscapeTop",
-      "ad2LandscapeBottom"
+      "ad2LandscapeBottom",
+      "marbleMedia",
+      "marbleLandscapeTop",
+      "marbleLandscapeBottom",
+      ...marbleMediaKeys()
     ];
     let migrated = false;
     for (const key of keys) {
@@ -948,11 +1319,12 @@
   }
 
   function adKeysForSlot(slot) {
-    const isAd2 = slot === "ad2";
+    if (normalizeAdSlot(slot) === "marble") return selectedMarbleKeys();
+    const config = adSlotConfigs[normalizeAdSlot(slot)];
     return {
-      portrait: isAd2 ? "ad2Media" : "adMedia",
-      top: isAd2 ? "ad2LandscapeTop" : "adLandscapeTop",
-      bottom: isAd2 ? "ad2LandscapeBottom" : "adLandscapeBottom"
+      portrait: config.portraitKey,
+      top: config.topKey,
+      bottom: config.bottomKey
     };
   }
 
@@ -962,6 +1334,21 @@
 
   async function restoreAdSamples(slot) {
     const keys = adKeysForSlot(slot);
+    if (normalizeAdSlot(slot) === "marble") {
+      const samples = cloneMarbleSampleMedia();
+      const periodState = defaultMarblePeriodState(samples, selectedMarblePeriodId());
+      state[keys.portrait] = [...removeSamplesFromList(state[keys.portrait]), ...cloneMediaItems(periodState.portrait)];
+      state[keys.top] = [...removeSamplesFromList(state[keys.top]), ...cloneMediaItems(periodState.top)];
+      state[keys.bottom] = [...removeSamplesFromList(state[keys.bottom]), ...cloneMediaItems(periodState.bottom)];
+      state[keys.layout] = periodState.layout;
+      state.marbleLayout = "landscape";
+      state.marbleSamplesInitialized = true;
+      saveState();
+      renderAdminLists();
+      syncMarblePeriodControls();
+      await renderAdminPreview();
+      return;
+    }
     const samples = cloneAdSampleMedia();
     state[keys.portrait] = [...removeSamplesFromList(state[keys.portrait]), ...cloneMediaItems(samples.portrait)];
     state[keys.top] = [...removeSamplesFromList(state[keys.top]), ...cloneMediaItems(samples.landscapeTop)];
@@ -977,7 +1364,12 @@
     state[keys.portrait] = removeSamplesFromList(state[keys.portrait]);
     state[keys.top] = removeSamplesFromList(state[keys.top]);
     state[keys.bottom] = removeSamplesFromList(state[keys.bottom]);
-    state.adSamplesInitialized = true;
+    if (normalizeAdSlot(slot) === "marble") {
+      state.marbleSamplesInitialized = true;
+      syncMarblePeriodControls();
+    } else {
+      state.adSamplesInitialized = true;
+    }
     saveState();
     renderAdminLists();
     await renderAdminPreview();
@@ -1039,6 +1431,7 @@
 
   function renderMediaList(key, mountId) {
     const mount = document.getElementById(mountId);
+    if (!mount) return;
     mount.replaceChildren();
     const items = state[key];
     if (!items.length) {
@@ -1139,14 +1532,51 @@
     renderMediaList("ad2Media", "ad2PortraitList");
     renderMediaList("ad2LandscapeTop", "ad2LandscapeTopList");
     renderMediaList("ad2LandscapeBottom", "ad2LandscapeBottomList");
+    const marbleKeys = selectedMarbleKeys();
+    renderMediaList(marbleKeys.portrait, "marblePortraitList");
+    renderMediaList(marbleKeys.top, "marbleLandscapeTopList");
+    renderMediaList(marbleKeys.bottom, "marbleLandscapeBottomList");
     renderEventList();
   }
 
   function syncAdLayoutControls(slot = "ad1") {
-    const isAd2 = slot === "ad2";
-    const isLandscape = (isAd2 ? state.ad2Layout : state.adLayout) === "landscape";
-    document.getElementById(isAd2 ? "ad2PortraitControls" : "adPortraitControls").classList.toggle("is-hidden", isLandscape);
-    document.getElementById(isAd2 ? "ad2LandscapeControls" : "adLandscapeControls").classList.toggle("is-hidden", !isLandscape);
+    const config = adSlotConfigs[normalizeAdSlot(slot)];
+    const layoutKey = normalizeAdSlot(slot) === "marble" ? selectedMarbleKeys().layout : config.layoutKey;
+    const isLandscape = state[layoutKey] === "landscape";
+    document.getElementById(config.portraitControlsId)?.classList.toggle("is-hidden", isLandscape);
+    document.getElementById(config.landscapeControlsId)?.classList.toggle("is-hidden", !isLandscape);
+  }
+
+  function syncMarblePeriodControls() {
+    const periodId = selectedMarblePeriodId();
+    const period = marbleSlotForId(periodId);
+    const keys = selectedMarbleKeys();
+    document.querySelectorAll('input[name="marblePeriod"]').forEach((input) => {
+      input.checked = input.value === periodId;
+    });
+    const label = document.getElementById("marbleActivePeriodLabel");
+    if (label) label.textContent = `編集中: ${period.label}`;
+    document.querySelectorAll('[data-admin-panel="marble"] [data-view-link]').forEach((link) => {
+      link.href = marblePreviewUrl(periodId);
+    });
+    document.querySelectorAll("[data-marble-period-link]").forEach((link) => {
+      const linkPeriodId = marbleSlotForId(link.dataset.marblePeriodLink).id;
+      link.href = marblePreviewUrl(linkPeriodId);
+      link.classList.toggle("is-active", linkPeriodId === periodId);
+      if (linkPeriodId === periodId) {
+        link.setAttribute("aria-current", "true");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
+    const layout = state[keys.layout] === "portrait" ? "portrait" : "landscape";
+    const layoutInput = document.getElementById(layout === "landscape" ? "marbleLayoutLandscape" : "marbleLayoutPortrait");
+    if (layoutInput) layoutInput.checked = true;
+    state.marbleLayout = layout;
+    syncAdLayoutControls("marble");
+    renderMediaList(keys.portrait, "marblePortraitList");
+    renderMediaList(keys.top, "marbleLandscapeTopList");
+    renderMediaList(keys.bottom, "marbleLandscapeBottomList");
   }
 
   function parseCsvRows(text) {
@@ -1370,6 +1800,12 @@
     populateVenues();
     document.getElementById("adSlideSeconds").value = state.slideSeconds.ad;
     document.getElementById("ad2SlideSeconds").value = state.slideSeconds.ad2;
+    const marbleSlideSecondsInput = document.getElementById("marbleSlideSeconds");
+    if (marbleSlideSecondsInput) marbleSlideSecondsInput.value = state.slideSeconds.marble;
+    const marbleLunchBadgeEnabledInput = document.getElementById("marbleLunchBadgeEnabled");
+    if (marbleLunchBadgeEnabledInput) marbleLunchBadgeEnabledInput.checked = state.marbleLunchBadgeEnabled !== false;
+    const marbleLunchBadgeTextInput = document.getElementById("marbleLunchBadgeText");
+    if (marbleLunchBadgeTextInput) marbleLunchBadgeTextInput.value = state.marbleLunchBadgeText || "ランチタイム開催中";
     document.getElementById("venueSlideSeconds").value = state.slideSeconds.venue;
     document.getElementById("eventDate").value = state.venueDate || currentDateString();
     document.getElementById("previewDate").value = state.venueDate || currentDateString();
@@ -1382,6 +1818,7 @@
     setEventFormMode();
     syncAdLayoutControls();
     syncAdLayoutControls("ad2");
+    syncMarblePeriodControls();
     migrateLocalMediaToServer();
 
     document.getElementById("adPortraitUpload").addEventListener("change", (event) => {
@@ -1414,10 +1851,27 @@
       event.target.value = "";
     });
 
+    document.getElementById("marblePortraitUpload")?.addEventListener("change", (event) => {
+      handleUpload(event.target.files, selectedMarbleKeys().portrait);
+      event.target.value = "";
+    });
+
+    document.getElementById("marbleLandscapeTopUpload")?.addEventListener("change", (event) => {
+      handleUpload(event.target.files, selectedMarbleKeys().top);
+      event.target.value = "";
+    });
+
+    document.getElementById("marbleLandscapeBottomUpload")?.addEventListener("change", (event) => {
+      handleUpload(event.target.files, selectedMarbleKeys().bottom);
+      event.target.value = "";
+    });
+
     document.getElementById("restoreAdSamples").addEventListener("click", () => restoreAdSamples("ad1"));
     document.getElementById("clearAdSamples").addEventListener("click", () => clearAdSamples("ad1"));
     document.getElementById("restoreAd2Samples").addEventListener("click", () => restoreAdSamples("ad2"));
     document.getElementById("clearAd2Samples").addEventListener("click", () => clearAdSamples("ad2"));
+    document.getElementById("restoreMarbleSamples")?.addEventListener("click", () => restoreAdSamples("marble"));
+    document.getElementById("clearMarbleSamples")?.addEventListener("click", () => clearAdSamples("marble"));
 
     document.querySelectorAll('input[name="adLayout"]').forEach((input) => {
       input.addEventListener("change", async (event) => {
@@ -1433,6 +1887,27 @@
         state.ad2Layout = event.target.value === "landscape" ? "landscape" : "portrait";
         saveState();
         syncAdLayoutControls("ad2");
+        await renderAdminPreview();
+      });
+    });
+
+    document.querySelectorAll('input[name="marblePeriod"]').forEach((input) => {
+      input.addEventListener("change", async (event) => {
+        state.marbleAdminPeriod = marbleSlotForId(event.target.value).id;
+        saveState();
+        syncMarblePeriodControls();
+        await renderAdminPreview();
+      });
+    });
+
+    document.querySelectorAll('input[name="marbleLayout"]').forEach((input) => {
+      input.addEventListener("change", async (event) => {
+        const layout = event.target.value === "portrait" ? "portrait" : "landscape";
+        const keys = selectedMarbleKeys();
+        state[keys.layout] = layout;
+        state.marbleLayout = layout;
+        saveState();
+        syncAdLayoutControls("marble");
         await renderAdminPreview();
       });
     });
@@ -1471,6 +1946,25 @@
     document.getElementById("ad2SlideSeconds").addEventListener("change", async (event) => {
       state.slideSeconds.ad2 = normalizeSlideSeconds(event.target.value);
       event.target.value = state.slideSeconds.ad2;
+      saveState();
+      await renderAdminPreview();
+    });
+
+    document.getElementById("marbleSlideSeconds")?.addEventListener("change", async (event) => {
+      state.slideSeconds.marble = normalizeSlideSeconds(event.target.value);
+      event.target.value = state.slideSeconds.marble;
+      saveState();
+      await renderAdminPreview();
+    });
+
+    document.getElementById("marbleLunchBadgeEnabled")?.addEventListener("change", async (event) => {
+      state.marbleLunchBadgeEnabled = event.target.checked;
+      saveState();
+      await renderAdminPreview();
+    });
+
+    document.getElementById("marbleLunchBadgeText")?.addEventListener("input", async (event) => {
+      state.marbleLunchBadgeText = cleanText(event.target.value, 40);
       saveState();
       await renderAdminPreview();
     });
@@ -1554,6 +2048,21 @@
       });
     });
 
+    document.querySelectorAll("a[data-view-link], a[data-marble-period-link]").forEach((link) => {
+      link.addEventListener("click", async (event) => {
+        event.preventDefault();
+        const targetUrl = event.currentTarget.href;
+        const previewWindow = window.open("about:blank", "_blank");
+        if (previewWindow) previewWindow.opener = null;
+        await flushStateToServer();
+        if (previewWindow) {
+          previewWindow.location.href = targetUrl;
+        } else {
+          window.open(targetUrl, "_blank", "noopener");
+        }
+      });
+    });
+
     renderAdminPreview();
     window.setInterval(renderAdminPreview, 1000);
   }
@@ -1568,7 +2077,8 @@
     }
     await renderSignage(previewScreen, frame, {
       previewDate: document.getElementById("previewDate").value || state.venueDate || currentDateString(),
-      previewTime: document.getElementById("previewTime").value || currentTimeString()
+      previewTime: document.getElementById("previewTime").value || currentTimeString(),
+      marblePeriodId: selectedMarblePeriodId()
     });
   }
 
@@ -1613,36 +2123,46 @@
     return `${media.id || media.name}:${media.pageNumber || 1}`;
   }
 
-  function adLayoutFor(type) {
+  function adLayoutFor(type, options = {}) {
     if (type === "ad-portrait") return "portrait";
     if (type === "ad-landscape") return "landscape";
-    return type === "ad2" ? state.ad2Layout : state.adLayout;
+    const slot = normalizeAdSlot(type);
+    const layoutKey = slot === "marble" ? marbleKeysForPeriod(marblePeriodForRender(options)).layout : adSlotConfigs[slot].layoutKey;
+    const layout = state[layoutKey];
+    return layout === "portrait" ? "portrait" : "landscape";
   }
 
-  function adSourceFor(type) {
-    const isAd2 = type === "ad2";
+  function adSourceFor(type, options = {}) {
+    const slot = normalizeAdSlot(type);
+    const config = slot === "marble" ? marbleKeysForPeriod(marblePeriodForRender(options)) : adSlotConfigs[slot];
     return {
-      portrait: isAd2 ? state.ad2Media : state.adMedia,
-      top: isAd2 ? state.ad2LandscapeTop : state.adLandscapeTop,
-      bottom: isAd2 ? state.ad2LandscapeBottom : state.adLandscapeBottom
+      portrait: state[config.portraitKey || config.portrait] || [],
+      top: state[config.topKey || config.top] || [],
+      bottom: state[config.bottomKey || config.bottom] || []
     };
   }
 
-  function adRenderKey(type) {
-    const layout = adLayoutFor(type);
-    const source = adSourceFor(type);
+  function adRenderKey(type, options = {}) {
+    const layout = adLayoutFor(type, options);
+    const source = adSourceFor(type, options);
+    const periodKey = normalizeAdSlot(type) === "marble" ? marblePeriodForRender(options) : "";
     const slideMs = slideMsFor(type);
     const slideIndex = slideIndexFor(slideMs);
     if (layout === "portrait") {
       const media = estimateAdItems(source.portrait);
       const slide = media.length ? media[slideIndex % media.length] : null;
-      return [type, layout, slideMs, media.length, mediaKey(slide)].join("|");
+      return [type, periodKey, layout, slideMs, media.length, mediaKey(slide)].join("|");
     }
     const topMedia = estimateAdItems(source.top);
     const bottomMedia = estimateAdItems(source.bottom);
     const topSlide = topMedia.length ? topMedia[slideIndex % topMedia.length] : null;
     const bottomSlide = bottomMedia.length ? bottomMedia[slideIndex % bottomMedia.length] : null;
-    return [type, layout, slideMs, topMedia.length, mediaKey(topSlide), bottomMedia.length, mediaKey(bottomSlide)].join("|");
+    return [type, periodKey, layout, slideMs, topMedia.length, mediaKey(topSlide), bottomMedia.length, mediaKey(bottomSlide)].join("|");
+  }
+
+  function pdfUrlWithViewOptions(url, pageNumber = 1) {
+    const separator = url.includes("#") ? "&" : "#";
+    return `${url}${separator}page=${pageNumber}&toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
   }
 
   async function createNativePdfObject(media, url) {
@@ -1650,7 +2170,7 @@
     const object = document.createElement("object");
     object.className = "pdf-native-object";
     object.type = "application/pdf";
-    object.data = `${url}#page=${pageNumber}&toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
+    object.data = pdfUrlWithViewOptions(url, pageNumber);
     object.appendChild(emptyMediaMessage(media.name));
     return object;
   }
@@ -1694,31 +2214,6 @@
     if (isPdfMedia(media)) {
       wrap.classList.add("pdf-native-frame");
       return renderPdfImageFrame(wrap, media, url);
-      try {
-        const pageInfo = await getPdfPageInfo(media, media.pageNumber || 1);
-        if (pageInfo) {
-          wrap.style.setProperty("--pdf-page-ratio", `${pageInfo.width} / ${pageInfo.height}`);
-        }
-        wrap.appendChild(await createNativePdfObject(media, url));
-      } catch (error) {
-        console.warn("Native PDF display setup failed", error);
-        try {
-          const pdfImageUrl = await renderPdfPageUrl(media, media.pageNumber || 1);
-          if (!pdfImageUrl) {
-            wrap.appendChild(emptyMediaMessage("登録PDFを読み込めませんでした。管理画面から再登録してください。"));
-            return wrap;
-          }
-          const image = document.createElement("img");
-          image.className = "media-fit-width";
-          image.src = pdfImageUrl;
-          image.alt = media.pageNumber ? `${media.name} ${media.pageNumber}ページ` : media.name;
-          wrap.appendChild(image);
-        } catch (renderError) {
-          console.warn("PDF render failed", renderError);
-          wrap.appendChild(emptyMediaMessage("登録PDFを読み込めませんでした。PDFを軽量化して再登録してください。"));
-        }
-      }
-      return wrap;
     }
     const image = document.createElement("img");
     image.className = "media-fit-width";
@@ -1728,8 +2223,114 @@
     return wrap;
   }
 
-  async function renderAdScreen(type) {
-    const screen = createEl("section", "signage-screen ad-screen");
+  function markMediaFrame(frame, region, media) {
+    frame.dataset.mediaRegion = region;
+    frame.dataset.mediaKey = mediaKey(media);
+    return frame;
+  }
+
+  function carryUnchangedMediaFrames(previousScreen, nextScreen) {
+    if (!previousScreen || !nextScreen) return;
+    const previousFrames = Array.from(previousScreen.querySelectorAll(".media-frame-wrap[data-media-region][data-media-key]"));
+    nextScreen.querySelectorAll(".media-frame-wrap[data-media-region][data-media-key]").forEach((nextFrame) => {
+      const match = previousFrames.find((previousFrame) => (
+        previousFrame.dataset.mediaRegion === nextFrame.dataset.mediaRegion
+        && previousFrame.dataset.mediaKey === nextFrame.dataset.mediaKey
+      ));
+      if (match) {
+        nextFrame.replaceWith(match);
+      }
+    });
+  }
+
+  function syncMarbleLunchBadge(previousScreen, nextScreen) {
+    const previousBadge = previousScreen.querySelector(".marble-lunch-badge");
+    const nextBadge = nextScreen.querySelector(".marble-lunch-badge");
+    if (previousBadge && nextBadge) {
+      previousBadge.replaceWith(nextBadge);
+      return;
+    }
+    if (previousBadge) {
+      previousBadge.remove();
+      return;
+    }
+    if (nextBadge) {
+      previousScreen.appendChild(nextBadge);
+    }
+  }
+
+  function patchAdScreen(previousScreen, nextScreen) {
+    if (!previousScreen || !nextScreen) return false;
+    const previousFrames = Array.from(previousScreen.querySelectorAll(".media-frame-wrap[data-media-region]"));
+    const nextFrames = Array.from(nextScreen.querySelectorAll(".media-frame-wrap[data-media-region]"));
+    if (!previousFrames.length || previousFrames.length !== nextFrames.length) return false;
+    const previousByRegion = new Map(previousFrames.map((frame) => [frame.dataset.mediaRegion, frame]));
+    const nextRegions = nextFrames.map((frame) => frame.dataset.mediaRegion);
+    if (nextRegions.some((region) => !previousByRegion.has(region))) return false;
+
+    nextFrames.forEach((nextFrame) => {
+      const previousFrame = previousByRegion.get(nextFrame.dataset.mediaRegion);
+      if (previousFrame.dataset.mediaKey !== nextFrame.dataset.mediaKey) {
+        previousFrame.replaceWith(nextFrame);
+      }
+    });
+    syncMarbleLunchBadge(previousScreen, nextScreen);
+    previousScreen.dataset.renderKey = nextScreen.dataset.renderKey;
+    return true;
+  }
+
+  function appendMarbleLunchBadge(screen, periodId) {
+    const text = cleanText(state.marbleLunchBadgeText || "", 40);
+    if (periodId !== "lunch" || state.marbleLunchBadgeEnabled === false || !text) return;
+    const badge = createEl("div", "marble-lunch-badge");
+    badge.append(
+      createEl("span", "marble-lunch-badge-kicker", "LUNCH TIME"),
+      createEl("span", "marble-lunch-badge-text", text)
+    );
+    screen.appendChild(badge);
+  }
+
+  async function renderAdScreen(type, options = {}) {
+    const isMarble = normalizeAdSlot(type) === "marble";
+    const screen = createEl("section", `signage-screen ad-screen${isMarble ? " marble-screen" : ""}`);
+    const slot = normalizeAdSlot(type);
+    const marblePeriodId = isMarble ? marblePeriodForRender(options) : "";
+    const layout = adLayoutFor(type, options);
+    const source = adSourceFor(type, options);
+    const slideMs = slideMsFor(type);
+    const slideIndex = slideIndexFor(slideMs);
+
+    if (isMarble) {
+      const stage = createEl("div", `ad-stage marble-stage ${layout === "portrait" ? "portrait" : "landscape"}`);
+      if (layout === "portrait") {
+        const media = await expandAdItems(source.portrait);
+        const slide = media.length ? slideIndex % media.length : 0;
+        stage.appendChild(markMediaFrame(
+          await createMediaFrame(media[slide], "マーブルラウンジ 縦表示用のPDFまたは画像を登録してください"),
+          `${slot}:${marblePeriodId}:portrait`,
+          media[slide]
+        ));
+        screen.appendChild(stage);
+        appendMarbleLunchBadge(screen, marblePeriodId);
+        return screen;
+      }
+      const topMediaItems = await expandAdItems(source.top);
+      const bottomMediaItems = await expandAdItems(source.bottom);
+      const topMedia = topMediaItems.length ? topMediaItems[slideIndex % topMediaItems.length] : null;
+      const bottomMedia = bottomMediaItems.length ? bottomMediaItems[slideIndex % bottomMediaItems.length] : null;
+      const [topFrame, bottomFrame] = await Promise.all([
+        createMediaFrame(topMedia, "マーブルラウンジ A3横 上段用のPDFまたは画像を登録してください"),
+        createMediaFrame(bottomMedia, "マーブルラウンジ A3横 下段用のPDFまたは画像を登録してください")
+      ]);
+      stage.append(
+        markMediaFrame(topFrame, `${slot}:${marblePeriodId}:top`, topMedia),
+        markMediaFrame(bottomFrame, `${slot}:${marblePeriodId}:bottom`, bottomMedia)
+      );
+      screen.appendChild(stage);
+      appendMarbleLunchBadge(screen, marblePeriodId);
+      return screen;
+    }
+
     const header = createEl("header", "ad-header");
     const title = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     title.classList.add("ad-header-title");
@@ -1746,28 +2347,36 @@
     titleText.textContent = "INFORMATION";
     title.appendChild(titleText);
     header.appendChild(title);
-    const layout = adLayoutFor(type);
-    const source = adSourceFor(type);
     const stage = createEl("div", `ad-stage ${layout === "portrait" ? "portrait" : "landscape"}`);
     const footer = createEl("footer", "ad-footer");
     const logo = document.createElement("img");
     logo.src = "./assets/logo_itaya.png";
     logo.alt = "HOTEL NEW ITAYA";
     footer.appendChild(logo);
-    const slideMs = slideMsFor(type);
-    const slideIndex = slideIndexFor(slideMs);
 
     if (layout === "portrait") {
       const media = await expandAdItems(source.portrait);
       const slide = media.length ? slideIndex % media.length : 0;
-      stage.appendChild(await createMediaFrame(media[slide], "A版縦PDFまたは画像を登録してください"));
+      stage.appendChild(markMediaFrame(
+        await createMediaFrame(media[slide], "A版縦PDFまたは画像を登録してください"),
+        `${slot}:portrait`,
+        media[slide]
+      ));
     } else {
       const topMediaItems = await expandAdItems(source.top);
       const bottomMediaItems = await expandAdItems(source.bottom);
       const topMedia = topMediaItems.length ? topMediaItems[slideIndex % topMediaItems.length] : null;
       const bottomMedia = bottomMediaItems.length ? bottomMediaItems[slideIndex % bottomMediaItems.length] : null;
-      stage.appendChild(await createMediaFrame(topMedia, "横表示 上段用のPDFまたは画像を登録してください"));
-      stage.appendChild(await createMediaFrame(bottomMedia, "横表示 下段用のPDFまたは画像を登録してください"));
+      stage.appendChild(markMediaFrame(
+        await createMediaFrame(topMedia, "横表示 上段用のPDFまたは画像を登録してください"),
+        `${slot}:top`,
+        topMedia
+      ));
+      stage.appendChild(markMediaFrame(
+        await createMediaFrame(bottomMedia, "横表示 下段用のPDFまたは画像を登録してください"),
+        `${slot}:bottom`,
+        bottomMedia
+      ));
     }
 
     screen.append(header, stage, footer);
@@ -1818,7 +2427,7 @@
   }
 
   function renderKeyFor(type, options = {}) {
-    return type === "venue" ? venueRenderKey(options) : adRenderKey(type);
+    return type === "venue" ? venueRenderKey(options) : adRenderKey(type, options);
   }
 
   function renderVenueScreen(options = {}) {
@@ -1875,11 +2484,22 @@
     const nextKey = renderKeyFor(type, options);
     if (mount.dataset.renderKey === nextKey && mount.firstElementChild) return;
     const token = ++renderToken;
-    const screen = type === "venue" ? renderVenueScreen(options) : await renderAdScreen(type);
+    const previous = mount.querySelector(".signage-screen");
+    const screen = type === "venue" ? renderVenueScreen(options) : await renderAdScreen(type, options);
     if (token !== renderToken) return;
     screen.dataset.renderKey = nextKey;
+    if (type !== "venue" && previous) {
+      if (patchAdScreen(previous, screen)) {
+        mount.dataset.renderKey = nextKey;
+        return;
+      }
+      carryUnchangedMediaFrames(previous, screen);
+      screen.classList.add("is-visible");
+      mount.dataset.renderKey = nextKey;
+      previous.replaceWith(screen);
+      return;
+    }
     screen.classList.add("is-entering");
-    const previous = mount.querySelector(".signage-screen");
     mount.dataset.renderKey = nextKey;
     mount.appendChild(screen);
     window.requestAnimationFrame(() => {
@@ -1907,6 +2527,7 @@
     const sharedState = await fetchSharedState();
     state = sharedState || loadState();
     ensureInitialAdSamples();
+    ensureInitialMarbleSamples();
     if (!sharedState && !isViewer) saveState();
     if (isViewer) {
       setupViewer(screenParam);

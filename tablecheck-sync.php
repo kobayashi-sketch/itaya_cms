@@ -15,7 +15,7 @@ $dataDir = __DIR__ . '/data';
 $stateFile = $dataDir . '/tablecheck-state.json';
 $logFile = $dataDir . '/tablecheck-updates.log';
 
-function tablecheck_json(array $payload, int $statusCode = 200): never
+function tablecheck_json(array $payload, int $statusCode = 200): void
 {
     http_response_code($statusCode);
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

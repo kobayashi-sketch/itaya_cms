@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@200..900&display=swap" rel="stylesheet">
     <title>&#12507;&#12486;&#12523;&#12491;&#12517;&#12540;&#12452;&#12479;&#12516; &#12469;&#12452;&#12493;&#12540;&#12472;&#31649;&#29702;</title>
-    <link rel="stylesheet" href="./styles.css?v=20260807-1">
+    <link rel="stylesheet" href="./styles.css?v=20260808-19">
   </head>
   <body class="auth-locked" data-admin-screen="venue" data-admin-page="index">
     <main id="loginApp" class="login-app" aria-label="Login">
@@ -36,6 +36,7 @@
         <a data-admin-nav="venue-auto" href="./admin-venue-auto.html">&#20250;&#22580;&#65288;&#33258;&#21205;&#65289;</a>
         <a data-admin-nav="ad1" href="./admin-ad1.html">&#24195;&#21578;&#9312;</a>
         <a data-admin-nav="ad2" href="./admin-ad2.html">&#24195;&#21578;&#9313;</a>
+        <a data-admin-nav="marble" href="./admin-marble.html">マーブル</a>
         <a data-admin-nav="report" href="./report.html">帳票出力</a>
         <a class="admin-nav-manual" href="./itaya_signage_manual.pdf" target="_blank" rel="noopener">操作マニュアル</a>
       </nav>
@@ -156,10 +157,98 @@
             </div>
           </section>
 
-          <section class="panel" data-admin-panel="venue">
+          <section class="panel" data-admin-panel="marble">
             <div class="panel-title">
               <div>
                 <p class="panel-kicker">Admin 03</p>
+                <h2>マーブルラウンジ</h2>
+              </div>
+              <a class="ghost-link" data-view-link href="./marble.html?marblePeriod=lunch" target="_blank">表示画面</a>
+            </div>
+            <p class="panel-note">マーブル専用の枠画像を使い、時間帯ごとに縦1枚または横2枚の表示内容を切り替えます。複数ページPDFは1ページずつスライドします。</p>
+            <div class="layout-choice marble-period-choice" role="radiogroup" aria-label="マーブル表示時間帯">
+              <label>
+                <input id="marblePeriodMorning" type="radio" name="marblePeriod" value="morning">
+                <span>10:00〜11:30</span>
+              </label>
+              <label>
+                <input id="marblePeriodLunch" type="radio" name="marblePeriod" value="lunch">
+                <span>11:30〜14:30</span>
+              </label>
+              <label>
+                <input id="marblePeriodDinner" type="radio" name="marblePeriod" value="dinner">
+                <span>14:30〜21:00</span>
+              </label>
+            </div>
+            <p id="marbleActivePeriodLabel" class="panel-note marble-active-period-label">編集中: 11:30〜14:30</p>
+            <div class="marble-preview-links" aria-label="時間帯別プレビュー">
+              <span>固定プレビュー</span>
+              <a data-marble-period-link="morning" href="./marble.html?marblePeriod=morning" target="_blank">10:00〜11:30</a>
+              <a data-marble-period-link="lunch" href="./marble.html?marblePeriod=lunch" target="_blank">11:30〜14:30</a>
+              <a data-marble-period-link="dinner" href="./marble.html?marblePeriod=dinner" target="_blank">14:30〜21:00</a>
+            </div>
+            <div class="marble-lunch-eyecatch-settings">
+              <label class="check-row">
+                <input id="marbleLunchBadgeEnabled" type="checkbox">
+                <span>ランチタイムのアイキャッチを表示</span>
+              </label>
+              <label class="setting-field">
+                <span>アイキャッチ文言</span>
+                <input id="marbleLunchBadgeText" type="text" maxlength="40" placeholder="例：ランチタイム開催中">
+              </label>
+            </div>
+            <div class="layout-choice" role="radiogroup" aria-label="選択中のマーブル表示方向">
+              <label>
+                <input id="marbleLayoutPortrait" type="radio" name="marbleLayout" value="portrait">
+                <span>縦</span>
+              </label>
+              <label>
+                <input id="marbleLayoutLandscape" type="radio" name="marbleLayout" value="landscape">
+                <span>横</span>
+              </label>
+            </div>
+            <label class="setting-field">
+              <span>スライド秒数</span>
+              <input id="marbleSlideSeconds" type="number" min="1" max="120" step="1">
+            </label>
+            <div class="event-tools ad-sample-tools">
+              <button id="restoreMarbleSamples" type="button">サンプル復元</button>
+              <button id="clearMarbleSamples" type="button">サンプル削除</button>
+            </div>
+            <div id="marblePortraitControls" class="media-mode-panel">
+              <h3>縦表示用素材</h3>
+              <label class="upload-box">
+                <input id="marblePortraitUpload" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" multiple>
+                <span>PDF / 画像を登録</span>
+              </label>
+              <div id="marblePortraitList" class="media-list"></div>
+            </div>
+            <div id="marbleLandscapeControls" class="media-mode-panel">
+              <div class="split-upload-grid">
+                <section class="split-upload">
+                  <h3>A3横 上段素材</h3>
+                  <label class="upload-box">
+                    <input id="marbleLandscapeTopUpload" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" multiple>
+                    <span>上段用PDF / 画像を登録</span>
+                  </label>
+                  <div id="marbleLandscapeTopList" class="media-list"></div>
+                </section>
+                <section class="split-upload">
+                  <h3>A3横 下段素材</h3>
+                  <label class="upload-box">
+                    <input id="marbleLandscapeBottomUpload" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" multiple>
+                    <span>下段用PDF / 画像を登録</span>
+                  </label>
+                  <div id="marbleLandscapeBottomList" class="media-list"></div>
+                </section>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel" data-admin-panel="venue">
+            <div class="panel-title">
+              <div>
+                <p class="panel-kicker">Admin 04</p>
                 <h2>&#20250;&#22580;</h2>
               </div>
               <a class="ghost-link" data-view-link href="./venue.html" target="_blank">表示画面</a>
@@ -272,6 +361,7 @@
             <div class="segmented" role="tablist" aria-label="プレビュー切替">
               <button class="active" type="button" data-preview-screen="ad1">広告①</button>
               <button type="button" data-preview-screen="ad2">広告②</button>
+              <button type="button" data-preview-screen="marble">マーブル</button>
               <button type="button" data-preview-screen="venue">会場</button>
             </div>
           </div>
@@ -282,6 +372,6 @@
 
     <main id="viewerApp" class="viewer-app" aria-label="サイネージ表示画面"></main>
 
-    <script src="./app.js?v=20260807-1"></script>
+    <script src="./app.js?v=20260808-19"></script>
   </body>
 </html>

@@ -4,13 +4,13 @@
   Header set X-Content-Type-Options "nosniff"
   Header set Referrer-Policy "no-referrer"
   Header set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-  Header set Content-Security-Policy "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; object-src 'self' blob:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; base-uri 'self'; frame-ancestors 'self'; form-action 'self'"
+  Header set Content-Security-Policy "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: blob: https://fonts.gstatic.com; img-src 'self' data: blob:; object-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com; base-uri 'self'; frame-ancestors 'self'; form-action 'self'"
 </IfModule>
 
 Options -Indexes
 DirectoryIndex index.php index.html
 
-<FilesMatch "^(index|admin-ad1|admin-ad2|admin-venue|admin-venue-auto|report)\.html$|^(login|upload)\.php$">
+<FilesMatch "^(index|admin-ad1|admin-ad2|admin-marble|admin-venue|admin-venue-auto|report)\.html$|^(login|upload)\.php$">
   AuthType Basic
   AuthName "Itaya Signage Admin"
   AuthUserFile /home/jyunbi/www/newitaya.com/.htpasswd-newitaya

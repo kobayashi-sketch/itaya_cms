@@ -53,7 +53,7 @@ function signage_start_session(): void
     session_start();
 }
 
-function signage_json_response(array $payload, int $statusCode = 200): never
+function signage_json_response(array $payload, int $statusCode = 200): void
 {
     http_response_code($statusCode);
     header('Content-Type: application/json; charset=utf-8');
@@ -187,6 +187,17 @@ function signage_time(mixed $value): string
     return $text;
 }
 
+function signage_layout(mixed $value, string $fallback = 'portrait'): string
+{
+    return $value === 'landscape' ? 'landscape' : $fallback;
+}
+
+function signage_marble_period(mixed $value): string
+{
+    $period = signage_string($value, 20);
+    return in_array($period, ['morning', 'lunch', 'dinner'], true) ? $period : 'lunch';
+}
+
 function signage_media_list(mixed $items): array
 {
     if (!is_array($items)) {
@@ -263,16 +274,23 @@ function signage_events(mixed $items): array
 function signage_sanitize_state(array $state): array
 {
     $slideSeconds = is_array($state['slideSeconds'] ?? null) ? $state['slideSeconds'] : [];
-
-    return [
+    $sanitized = [
         'adMedia' => signage_media_list($state['adMedia'] ?? []),
         'adLandscapeTop' => signage_media_list($state['adLandscapeTop'] ?? []),
         'adLandscapeBottom' => signage_media_list($state['adLandscapeBottom'] ?? []),
-        'adLayout' => ($state['adLayout'] ?? '') === 'landscape' ? 'landscape' : 'portrait',
+        'adLayout' => signage_layout($state['adLayout'] ?? '', 'portrait'),
         'ad2Media' => signage_media_list($state['ad2Media'] ?? []),
         'ad2LandscapeTop' => signage_media_list($state['ad2LandscapeTop'] ?? []),
         'ad2LandscapeBottom' => signage_media_list($state['ad2LandscapeBottom'] ?? []),
-        'ad2Layout' => ($state['ad2Layout'] ?? '') === 'landscape' ? 'landscape' : 'portrait',
+        'ad2Layout' => signage_layout($state['ad2Layout'] ?? '', 'portrait'),
+        'marbleMedia' => signage_media_list($state['marbleMedia'] ?? []),
+        'marbleLandscapeTop' => signage_media_list($state['marbleLandscapeTop'] ?? []),
+        'marbleLandscapeBottom' => signage_media_list($state['marbleLandscapeBottom'] ?? []),
+        'marbleLayout' => signage_layout($state['marbleLayout'] ?? '', 'landscape'),
+        'marbleAdminPeriod' => signage_marble_period($state['marbleAdminPeriod'] ?? ''),
+        'marbleLunchBadgeEnabled' => ($state['marbleLunchBadgeEnabled'] ?? true) !== false,
+        'marbleLunchBadgeText' => signage_string($state['marbleLunchBadgeText'] ?? 'ランチタイム開催中', 40),
+        'marbleSamplesInitialized' => signage_bool($state['marbleSamplesInitialized'] ?? false),
         'adSamplesInitialized' => signage_bool($state['adSamplesInitialized'] ?? false),
         'venueDisplayMode' => ($state['venueDisplayMode'] ?? '') === 'all' ? 'all' : 'auto',
         'venueEndedMode' => ($state['venueEndedMode'] ?? '') === 'hide' ? 'hide' : 'show',
@@ -283,10 +301,20 @@ function signage_sanitize_state(array $state): array
         'slideSeconds' => [
             'ad' => signage_int_range($slideSeconds['ad'] ?? 5, 1, 120, 5),
             'ad2' => signage_int_range($slideSeconds['ad2'] ?? 5, 1, 120, 5),
+            'marble' => signage_int_range($slideSeconds['marble'] ?? 5, 1, 120, 5),
             'venue' => signage_int_range($slideSeconds['venue'] ?? 5, 1, 120, 5),
             'adPortrait' => signage_int_range($slideSeconds['adPortrait'] ?? 5, 1, 120, 5),
             'adLandscape' => signage_int_range($slideSeconds['adLandscape'] ?? 5, 1, 120, 5),
         ],
         'events' => signage_events($state['events'] ?? []),
     ];
+
+    foreach (['Morning', 'Lunch', 'Dinner'] as $suffix) {
+        $sanitized["marble{$suffix}Layout"] = signage_layout($state["marble{$suffix}Layout"] ?? '', 'landscape');
+        $sanitized["marble{$suffix}Media"] = signage_media_list($state["marble{$suffix}Media"] ?? []);
+        $sanitized["marble{$suffix}LandscapeTop"] = signage_media_list($state["marble{$suffix}LandscapeTop"] ?? []);
+        $sanitized["marble{$suffix}LandscapeBottom"] = signage_media_list($state["marble{$suffix}LandscapeBottom"] ?? []);
+    }
+
+    return $sanitized;
 }
