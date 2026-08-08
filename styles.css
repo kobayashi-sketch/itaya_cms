@@ -1195,8 +1195,8 @@ body[data-admin-screen] .segmented {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  width: min(50%, 540px);
+  gap: 8px;
+  width: min(64%, 680px);
   min-height: 28px;
   padding: 5px 18px 6px;
   color: #a51d16;
@@ -1220,12 +1220,10 @@ body[data-admin-screen] .segmented {
 }
 
 .marble-lunch-badge-text {
-  min-width: 0;
-  overflow: hidden;
+  flex: 0 0 auto;
   font-size: 17px;
   font-weight: 900;
   line-height: 1.1;
-  text-overflow: ellipsis;
   color: #b01814;
   animation: marble-lunch-text-pulse 2.8s ease-in-out infinite;
 }
