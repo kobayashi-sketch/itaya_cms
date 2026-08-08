@@ -2244,8 +2244,8 @@
   }
 
   function syncMarbleLunchBadge(previousScreen, nextScreen) {
-    const previousBadge = previousScreen.querySelector(".marble-lunch-badge");
-    const nextBadge = nextScreen.querySelector(".marble-lunch-badge");
+    const previousBadge = previousScreen.querySelector(".marble-lunch-notice");
+    const nextBadge = nextScreen.querySelector(".marble-lunch-notice");
     if (previousBadge && nextBadge) {
       previousBadge.replaceWith(nextBadge);
       return;
@@ -2282,10 +2282,10 @@
   function appendMarbleLunchBadge(screen, periodId) {
     const text = cleanText(state.marbleLunchBadgeText || "", 40);
     if (periodId !== "lunch" || state.marbleLunchBadgeEnabled === false || !text) return;
-    const badge = createEl("div", "marble-lunch-badge");
+    const badge = createEl("div", "marble-lunch-notice");
     badge.append(
-      createEl("span", "marble-lunch-badge-kicker", "LUNCH TIME"),
-      createEl("span", "marble-lunch-badge-text", text)
+      createEl("span", "marble-lunch-notice-kicker", "LUNCH TIME"),
+      createEl("span", "marble-lunch-notice-text", text)
     );
     screen.appendChild(badge);
   }

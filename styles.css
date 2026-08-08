@@ -1187,7 +1187,7 @@ body[data-admin-screen] .segmented {
   aspect-ratio: auto;
 }
 
-.marble-lunch-badge {
+.marble-lunch-notice {
   position: absolute;
   top: 7.15%;
   left: 50%;
@@ -1195,10 +1195,11 @@ body[data-admin-screen] .segmented {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  width: min(64%, 680px);
-  min-height: 28px;
-  padding: 5px 18px 6px;
+  gap: 12px;
+  width: auto;
+  min-width: 392px;
+  min-height: 30px;
+  padding: 5px 24px 6px;
   color: #a51d16;
   text-align: center;
   white-space: nowrap;
@@ -1211,7 +1212,7 @@ body[data-admin-screen] .segmented {
   transform: translateX(-50%);
 }
 
-.marble-lunch-badge-kicker {
+.marble-lunch-notice-kicker {
   flex: 0 0 auto;
   font-size: 11px;
   font-weight: 800;
@@ -1219,7 +1220,7 @@ body[data-admin-screen] .segmented {
   color: #a51d16;
 }
 
-.marble-lunch-badge-text {
+.marble-lunch-notice-text {
   flex: 0 0 auto;
   font-size: 17px;
   font-weight: 900;
@@ -1666,7 +1667,7 @@ body[data-admin-page="venue"] #screenPreview .venue-room {
   .venue-card,
   .venue-card.is-active-window::after,
   .venue-card.is-active-window .venue-time span,
-  .marble-lunch-badge-text {
+  .marble-lunch-notice-text {
     animation: none;
     opacity: 1;
     transform: none;
