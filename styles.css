@@ -1399,17 +1399,20 @@ body[data-admin-screen] .segmented {
 
 .menu-title-line {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: clamp(16px, 2.4cqw, 30px);
-  align-items: baseline;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(8px, 1.2cqh, 16px);
+  align-items: center;
+  justify-items: center;
+  text-align: center;
 }
 
 .menu-title-line h2 {
   min-width: 0;
+  max-width: 92%;
   margin: 0;
   color: #111;
   font-family: "Noto Serif JP", "Yu Mincho", serif;
-  font-size: clamp(35px, 6.2cqw, 74px);
+  font-size: clamp(31px, 5.55cqw, 66px);
   font-weight: 800;
   line-height: 1.12;
   overflow-wrap: anywhere;
@@ -1418,9 +1421,9 @@ body[data-admin-screen] .segmented {
 .menu-price {
   color: var(--itaya-navy);
   font-family: "Noto Serif JP", "Yu Mincho", serif;
-  font-size: clamp(30px, 5.2cqw, 62px);
+  font-size: clamp(28px, 4.8cqw, 56px);
   font-weight: 900;
-  line-height: 1;
+  line-height: 1.05;
   white-space: nowrap;
 }
 
