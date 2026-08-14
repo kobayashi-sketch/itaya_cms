@@ -10,6 +10,7 @@
   const VENUE_PAGE_SIZE = 10;
   const VENUE_TAB_DAYS = 7;
   const VENUE_TIME_ZONE = "Asia/Tokyo";
+  const MENU_EVENING_START = "17:00";
   const MARBLE_TIME_SLOTS = [
     { id: "morning", suffix: "Morning", label: "10:00〜11:30", start: "10:00", end: "11:30" },
     { id: "lunch", suffix: "Lunch", label: "11:30〜14:30", start: "11:30", end: "14:30" },
@@ -27,7 +28,7 @@
   const screenParam = params.get("screen") || pageScreen;
   const AUTH_KEY = "itaya-signage-admin-auth";
   const AUTH_CSRF_KEY = "itaya-signage-admin-csrf";
-  const validScreens = new Set(["ad", "ad1", "ad2", "marble", "ad-portrait", "ad-landscape", "venue"]);
+  const validScreens = new Set(["ad", "ad1", "ad2", "marble", "ad-portrait", "ad-landscape", "venue", "menu"]);
   const mediaUrlCache = new Map();
   const pdfPageUrlCache = new Map();
   const pdfDocumentCache = new Map();
@@ -44,7 +45,9 @@
     "sample-marble-lunch-top",
     "sample-marble-lunch-bottom",
     "sample-marble-dinner-top",
-    "sample-marble-dinner-bottom"
+    "sample-marble-dinner-bottom",
+    "sample-menu-day-image",
+    "sample-menu-evening-image"
   ]);
   let pdfJsPromise;
 
@@ -323,6 +326,66 @@
     }));
   }
 
+  const sampleMenuItems = [
+    {
+      name: "とちぎ霧降高原牛ステーキ重",
+      price: "2,800円",
+      description: "栃木県産牛の旨みをしっかり味わえる、マーブルおすすめの食事メニューです。",
+      serviceTime: "11:30〜14:30",
+      period: "day",
+      order: 10,
+      image: {
+        id: "sample-menu-day-image",
+        name: "signage_Marble_alldaydining.jpg",
+        type: "image/jpeg",
+        size: 0,
+        assetUrl: "./assets/marble/defaults/signage_Marble_alldaydining.jpg",
+        isSample: true
+      }
+    },
+    {
+      name: "うな重",
+      price: "3,200円",
+      description: "香ばしく焼き上げたうなぎを、ふっくらご飯とともにお楽しみください。",
+      serviceTime: "11:30〜14:30",
+      period: "day",
+      order: 20
+    },
+    {
+      name: "栃木五彩餃子",
+      price: "880円",
+      description: "栃木らしい彩りを添えた、夕方のお食事にもお酒にも合う一品です。",
+      serviceTime: "17:00〜21:00",
+      period: "evening",
+      order: 30,
+      image: {
+        id: "sample-menu-evening-image",
+        name: "signage_Marble_alldaydining.jpg",
+        type: "image/jpeg",
+        size: 0,
+        assetUrl: "./assets/marble/defaults/signage_Marble_alldaydining.jpg",
+        isSample: true
+      }
+    },
+    {
+      name: "本日の栃木の日本酒 + 前菜ペアリングセット",
+      price: "1,500円",
+      description: "その日のおすすめ日本酒と前菜を少量ずつ楽しめるペアリングセットです。",
+      serviceTime: "17:00〜21:00",
+      period: "evening",
+      order: 40
+    }
+  ];
+
+  function cloneSampleMenuItems() {
+    return sampleMenuItems.map((item) => ({
+      id: crypto.randomUUID(),
+      visibleOnSignage: true,
+      ...item,
+      image: item.image ? { ...item.image } : null
+    }));
+  }
+
   function displayVenueName(venue) {
     const trimmed = String(venue || "").trim();
     if (trimmed === "チェス1" || trimmed === "チェス１") return "チェスナット";
@@ -495,12 +558,15 @@
       venueEndedMode: "show",
       venueTheme: "light",
       venueDate: currentDateString(),
+      menuDisplayMode: "auto",
+      menuItems: cloneSampleMenuItems(),
       adPortrait: [],
       adLandscape: [],
       slideSeconds: {
         ad: DEFAULT_SLIDE_SECONDS,
         ad2: DEFAULT_SLIDE_SECONDS,
         marble: DEFAULT_SLIDE_SECONDS,
+        menu: DEFAULT_SLIDE_SECONDS,
         venue: DEFAULT_SLIDE_SECONDS,
         adPortrait: DEFAULT_SLIDE_SECONDS,
         adLandscape: DEFAULT_SLIDE_SECONDS
@@ -553,12 +619,15 @@
         venueEndedMode: parsed.venueEndedMode === "hide" ? "hide" : "show",
         venueTheme: parsed.venueTheme === "dark" ? "dark" : "light",
         venueDate: isVenueDateInCurrentTabs(venueDate) ? venueDate : currentDateString(),
+        menuDisplayMode: parsed.menuDisplayMode === "all" ? "all" : "auto",
+        menuItems: Array.isArray(parsed.menuItems) ? sortMenuItems(parsed.menuItems.map(normalizeMenuItem).filter(Boolean)) : cloneSampleMenuItems(),
         adPortrait: Array.isArray(parsed.adPortrait) ? parsed.adPortrait : [],
         adLandscape: Array.isArray(parsed.adLandscape) ? parsed.adLandscape : [],
         slideSeconds: {
           ad: normalizeSlideSeconds(parsedSeconds.ad || parsedSeconds.adPortrait || parsedSeconds.adLandscape),
           ad2: normalizeSlideSeconds(parsedSeconds.ad2),
           marble: normalizeSlideSeconds(parsedSeconds.marble),
+          menu: normalizeSlideSeconds(parsedSeconds.menu),
           venue: normalizeSlideSeconds(parsedSeconds.venue),
           adPortrait: normalizeSlideSeconds(parsedSeconds.adPortrait),
           adLandscape: normalizeSlideSeconds(parsedSeconds.adLandscape)
@@ -596,6 +665,7 @@
   let previewScreen = document.body?.dataset?.adminScreen || "ad1";
   let renderToken = 0;
   let editingEventId = null;
+  let editingMenuItemId = null;
   let saveStateTimer = 0;
   let localMediaMigrationStarted = false;
 
@@ -758,6 +828,7 @@
 
   function slideMsFor(type) {
     if (type === "venue") return normalizeSlideSeconds(state.slideSeconds.venue) * 1000;
+    if (type === "menu") return normalizeSlideSeconds(state.slideSeconds.menu) * 1000;
     if (type === "ad-portrait") return normalizeSlideSeconds(state.slideSeconds.adPortrait || state.slideSeconds.ad) * 1000;
     if (type === "ad-landscape") return normalizeSlideSeconds(state.slideSeconds.adLandscape || state.slideSeconds.ad) * 1000;
     const slot = normalizeAdSlot(type);
@@ -876,6 +947,10 @@
   function isAllowedMediaFile(file) {
     const type = guessType(file);
     return type.startsWith("image/") || type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+  }
+
+  function isAllowedMenuImageFile(file) {
+    return guessType(file).startsWith("image/");
   }
 
   function pdfLoadOptions(data) {
@@ -1066,6 +1141,63 @@
       .filter(Boolean)
       .join("\n")
       .slice(0, maxLength);
+  }
+
+  function normalizeMenuPeriod(value) {
+    return ["day", "evening", "all"].includes(value) ? value : "day";
+  }
+
+  function menuPeriodLabel(period) {
+    if (period === "evening") return "夕方";
+    if (period === "all") return "終日";
+    return "朝・昼";
+  }
+
+  function menuPeriodForTime(time) {
+    return minutesFromTime(time) >= minutesFromTime(MENU_EVENING_START) ? "evening" : "day";
+  }
+
+  function normalizeMenuImage(image) {
+    if (!image || typeof image !== "object") return null;
+    const id = cleanText(image.id, 80);
+    const name = cleanText(image.name, 180);
+    if (!id || !name) return null;
+    const media = {
+      id,
+      name,
+      type: cleanText(image.type || "image/jpeg", 80),
+      size: Math.max(0, Number(image.size) || 0)
+    };
+    if (image.assetUrl) media.assetUrl = cleanText(image.assetUrl, 240);
+    if (image.createdAt) media.createdAt = cleanText(image.createdAt, 40);
+    if (image.isSample === true) media.isSample = true;
+    return media;
+  }
+
+  function normalizeMenuItem(item, index = 0) {
+    if (!item || typeof item !== "object") return null;
+    const name = cleanText(item.name, 80);
+    const price = cleanText(item.price, 40);
+    if (!name || !price) return null;
+    return {
+      id: cleanText(item.id, 80) || crypto.randomUUID(),
+      visibleOnSignage: item.visibleOnSignage !== false,
+      name,
+      price,
+      description: cleanMultilineText(item.description, 180),
+      serviceTime: cleanText(item.serviceTime, 60),
+      period: normalizeMenuPeriod(item.period),
+      order: Number.isFinite(Number(item.order)) ? Number(item.order) : (index + 1) * 10,
+      image: normalizeMenuImage(item.image)
+    };
+  }
+
+  function sortMenuItems(items) {
+    return [...items].sort((a, b) => {
+      const orderDiff = (Number(a.order) || 0) - (Number(b.order) || 0);
+      if (orderDiff !== 0) return orderDiff;
+      return String(a.name || "").localeCompare(String(b.name || ""), "ja");
+    });
   }
 
   function dateForVenue(options = {}) {
@@ -1292,6 +1424,19 @@
         }
       }
     }
+    for (const item of state.menuItems || []) {
+      const media = item.image;
+      if (!media || media.assetUrl || isSampleMedia(media)) continue;
+      try {
+        const record = await getMedia(media.id);
+        if (!record?.blob) continue;
+        const uploaded = await uploadMediaFile(record.blob, 0, media.name || `${media.id}.jpg`);
+        item.image = { ...media, ...uploaded, id: uploaded.id || media.id };
+        migrated = true;
+      } catch (error) {
+        console.warn("Local menu image migration failed", error);
+      }
+    }
     if (!migrated) return;
     saveState();
     renderAdminLists();
@@ -1429,6 +1574,113 @@
     await selectVenueDate(eventItem.date || currentDateString());
   }
 
+  function nextMenuOrder() {
+    const maxOrder = Math.max(0, ...state.menuItems.map((item) => Number(item.order) || 0));
+    return maxOrder + 10;
+  }
+
+  function setMenuItemFormMode() {
+    const submit = document.getElementById("menuSubmitButton");
+    const cancel = document.getElementById("cancelMenuEdit");
+    if (submit) submit.textContent = editingMenuItemId ? "更新" : "追加";
+    if (cancel) cancel.classList.toggle("is-hidden", !editingMenuItemId);
+  }
+
+  function setMenuImageStatus(text = "未設定") {
+    const status = document.getElementById("menuImageStatus");
+    if (status) status.textContent = text;
+  }
+
+  function resetMenuItemForm() {
+    const form = document.getElementById("menuForm");
+    if (form) form.reset();
+    const period = document.getElementById("menuPeriod");
+    if (period) period.value = "day";
+    const order = document.getElementById("menuOrder");
+    if (order) order.value = String(nextMenuOrder());
+    const remove = document.getElementById("menuImageRemove");
+    if (remove) remove.checked = false;
+    editingMenuItemId = null;
+    setMenuImageStatus();
+    setMenuItemFormMode();
+  }
+
+  function menuImageSummary(image) {
+    if (!image) return "写真なし";
+    return `${image.name || "写真"} / ${formatBytes(image.size || 0)}`;
+  }
+
+  function startMenuItemEdit(id) {
+    const item = state.menuItems.find((menuItem) => menuItem.id === id);
+    if (!item) return;
+    editingMenuItemId = id;
+    document.getElementById("menuName").value = item.name || "";
+    document.getElementById("menuPrice").value = item.price || "";
+    document.getElementById("menuDescription").value = item.description || "";
+    document.getElementById("menuServiceTime").value = item.serviceTime || "";
+    document.getElementById("menuPeriod").value = normalizeMenuPeriod(item.period);
+    document.getElementById("menuOrder").value = String(item.order || nextMenuOrder());
+    document.getElementById("menuImageRemove").checked = false;
+    document.getElementById("menuImage").value = "";
+    setMenuImageStatus(menuImageSummary(item.image));
+    setMenuItemFormMode();
+    renderMenuItemList();
+    document.getElementById("menuName").focus();
+  }
+
+  async function toggleMenuItemVisibility(id) {
+    state.menuItems = state.menuItems.map((item) => (
+      item.id === id ? { ...item, visibleOnSignage: item.visibleOnSignage !== true } : item
+    ));
+    saveState();
+    renderMenuItemList();
+    await renderAdminPreview();
+  }
+
+  async function deleteMenuItem(id) {
+    const item = state.menuItems.find((menuItem) => menuItem.id === id);
+    state.menuItems = state.menuItems.filter((menuItem) => menuItem.id !== id);
+    if (editingMenuItemId === id) resetMenuItemForm();
+    saveState();
+    if (item?.image?.id && !item.image.assetUrl && !isSampleMedia(item.image)) {
+      await deleteMedia(item.image.id);
+    }
+    renderMenuItemList();
+    await renderAdminPreview();
+  }
+
+  function renderMenuItemList() {
+    const mount = document.getElementById("menuItemList");
+    if (!mount) return;
+    mount.replaceChildren();
+    const items = sortMenuItems(state.menuItems || []);
+    if (!items.length) {
+      mount.appendChild(createEl("p", "panel-note", "商品メニューは空です。必要な商品を追加してください。"));
+      return;
+    }
+    items.forEach((item) => {
+      const row = createEl("div", "event-row menu-item-row");
+      row.classList.toggle("is-editing", item.id === editingMenuItemId);
+      row.classList.toggle("is-visible-on-signage", item.visibleOnSignage !== false);
+      const text = createEl("div");
+      text.appendChild(createEl("strong", "", `${menuPeriodLabel(item.period)}　${item.name}　${item.price}`));
+      text.appendChild(createEl("small", "", `${item.serviceTime || "提供時間未設定"}\n${item.description || "説明未設定"}\n${menuImageSummary(item.image)}`));
+      const actions = createEl("div", "event-row-actions");
+      const showButton = createEl("button", "", item.visibleOnSignage !== false ? "表示中" : "非表示");
+      showButton.type = "button";
+      showButton.addEventListener("click", () => toggleMenuItemVisibility(item.id));
+      const editButton = createEl("button", "", item.id === editingMenuItemId ? "編集中" : "編集");
+      editButton.type = "button";
+      editButton.addEventListener("click", () => startMenuItemEdit(item.id));
+      const deleteButton = createEl("button", "", "削除");
+      deleteButton.type = "button";
+      deleteButton.addEventListener("click", () => deleteMenuItem(item.id));
+      actions.append(showButton, editButton, deleteButton);
+      row.append(text, actions);
+      mount.appendChild(row);
+    });
+  }
+
   function renderMediaList(key, mountId) {
     const mount = document.getElementById(mountId);
     if (!mount) return;
@@ -1536,6 +1788,7 @@
     renderMediaList(marbleKeys.portrait, "marblePortraitList");
     renderMediaList(marbleKeys.top, "marbleLandscapeTopList");
     renderMediaList(marbleKeys.bottom, "marbleLandscapeBottomList");
+    renderMenuItemList();
     renderEventList();
   }
 
@@ -1806,6 +2059,10 @@
     if (marbleLunchBadgeEnabledInput) marbleLunchBadgeEnabledInput.checked = state.marbleLunchBadgeEnabled !== false;
     const marbleLunchBadgeTextInput = document.getElementById("marbleLunchBadgeText");
     if (marbleLunchBadgeTextInput) marbleLunchBadgeTextInput.value = state.marbleLunchBadgeText || "ランチタイム開催中";
+    const menuSlideSecondsInput = document.getElementById("menuSlideSeconds");
+    if (menuSlideSecondsInput) menuSlideSecondsInput.value = state.slideSeconds.menu;
+    const menuPreviewTimeInput = document.getElementById("menuPreviewTime");
+    if (menuPreviewTimeInput) menuPreviewTimeInput.value = currentTimeString();
     document.getElementById("venueSlideSeconds").value = state.slideSeconds.venue;
     document.getElementById("eventDate").value = state.venueDate || currentDateString();
     document.getElementById("previewDate").value = state.venueDate || currentDateString();
@@ -1814,8 +2071,11 @@
     document.getElementById(state.venueDisplayMode === "all" ? "venueModeAll" : "venueModeAuto").checked = true;
     document.getElementById(state.venueEndedMode === "hide" ? "venueEndedHide" : "venueEndedShow").checked = true;
     document.getElementById(state.venueTheme === "dark" ? "venueThemeDark" : "venueThemeLight").checked = true;
+    const menuMode = document.getElementById(state.menuDisplayMode === "all" ? "menuModeAll" : "menuModeAuto");
+    if (menuMode) menuMode.checked = true;
     renderAdminLists();
     setEventFormMode();
+    resetMenuItemForm();
     syncAdLayoutControls();
     syncAdLayoutControls("ad2");
     syncMarblePeriodControls();
@@ -1936,6 +2196,14 @@
       });
     });
 
+    document.querySelectorAll('input[name="menuDisplayMode"]').forEach((input) => {
+      input.addEventListener("change", async (event) => {
+        state.menuDisplayMode = event.target.value === "all" ? "all" : "auto";
+        saveState();
+        await renderAdminPreview();
+      });
+    });
+
     document.getElementById("adSlideSeconds").addEventListener("change", async (event) => {
       state.slideSeconds.ad = normalizeSlideSeconds(event.target.value);
       event.target.value = state.slideSeconds.ad;
@@ -1968,6 +2236,15 @@
       saveState();
       await renderAdminPreview();
     });
+
+    document.getElementById("menuSlideSeconds")?.addEventListener("change", async (event) => {
+      state.slideSeconds.menu = normalizeSlideSeconds(event.target.value);
+      event.target.value = state.slideSeconds.menu;
+      saveState();
+      await renderAdminPreview();
+    });
+
+    document.getElementById("menuPreviewTime")?.addEventListener("change", renderAdminPreview);
 
     document.getElementById("venueSlideSeconds").addEventListener("change", async (event) => {
       state.slideSeconds.venue = normalizeSlideSeconds(event.target.value);
@@ -2017,6 +2294,65 @@
     document.getElementById("cancelEventEdit").addEventListener("click", () => {
       resetEventForm();
       renderEventList();
+    });
+
+    document.getElementById("menuForm")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const imageInput = document.getElementById("menuImage");
+      const existingItem = state.menuItems.find((item) => item.id === editingMenuItemId);
+      let image = existingItem?.image || null;
+      if (document.getElementById("menuImageRemove")?.checked) image = null;
+      const imageFile = imageInput?.files?.[0];
+      if (imageFile) {
+        if (!isAllowedMenuImageFile(imageFile)) {
+          setMenuImageStatus("画像ファイルを選択してください");
+          return;
+        }
+        image = await uploadMediaFile(imageFile, 0);
+      }
+      const item = normalizeMenuItem({
+        id: editingMenuItemId || crypto.randomUUID(),
+        visibleOnSignage: existingItem?.visibleOnSignage !== false,
+        name: document.getElementById("menuName").value,
+        price: document.getElementById("menuPrice").value,
+        description: document.getElementById("menuDescription").value,
+        serviceTime: document.getElementById("menuServiceTime").value,
+        period: document.getElementById("menuPeriod").value,
+        order: document.getElementById("menuOrder").value,
+        image
+      });
+      if (!item) return;
+      if (editingMenuItemId) {
+        state.menuItems = state.menuItems.map((menuItem) => (menuItem.id === editingMenuItemId ? item : menuItem));
+      } else {
+        state.menuItems.push(item);
+      }
+      state.menuItems = sortMenuItems(state.menuItems);
+      saveState();
+      resetMenuItemForm();
+      renderMenuItemList();
+      await renderAdminPreview();
+    });
+
+    document.getElementById("cancelMenuEdit")?.addEventListener("click", () => {
+      resetMenuItemForm();
+      renderMenuItemList();
+    });
+
+    document.getElementById("restoreMenuSamples")?.addEventListener("click", async () => {
+      state.menuItems = cloneSampleMenuItems();
+      saveState();
+      resetMenuItemForm();
+      renderMenuItemList();
+      await renderAdminPreview();
+    });
+
+    document.getElementById("clearMenuItems")?.addEventListener("click", async () => {
+      state.menuItems = [];
+      saveState();
+      resetMenuItemForm();
+      renderMenuItemList();
+      await renderAdminPreview();
     });
 
     document.getElementById("previewTime").addEventListener("change", renderAdminPreview);
@@ -2075,9 +2411,12 @@
       frame = createEl("div", "monitor-preview-frame");
       mount.replaceChildren(frame);
     }
+    const previewTimeField = previewScreen === "menu"
+      ? document.getElementById("menuPreviewTime")
+      : document.getElementById("previewTime");
     await renderSignage(previewScreen, frame, {
       previewDate: document.getElementById("previewDate").value || state.venueDate || currentDateString(),
-      previewTime: document.getElementById("previewTime").value || currentTimeString(),
+      previewTime: previewTimeField?.value || currentTimeString(),
       marblePeriodId: selectedMarblePeriodId()
     });
   }
@@ -2383,6 +2722,88 @@
     return screen;
   }
 
+  function getMenuItems(referenceTime) {
+    const period = menuPeriodForTime(referenceTime);
+    const items = sortMenuItems(state.menuItems || []).filter((item) => item.visibleOnSignage !== false);
+    if (state.menuDisplayMode === "all") {
+      return { period: "all", items };
+    }
+    return {
+      period,
+      items: items.filter((item) => item.period === "all" || item.period === period)
+    };
+  }
+
+  function menuSlideIndex(items) {
+    if (!items.length) return 0;
+    return slideIndexFor(slideMsFor("menu")) % items.length;
+  }
+
+  function menuRenderKey(options = {}) {
+    const referenceTime = options.previewTime || params.get("time") || currentTimeString();
+    const { period, items } = getMenuItems(referenceTime);
+    const index = menuSlideIndex(items);
+    const item = items[index];
+    const itemKey = item ? [
+      item.id,
+      item.visibleOnSignage,
+      item.name,
+      item.price,
+      item.description,
+      item.serviceTime,
+      item.period,
+      mediaKey(item.image)
+    ].join(":") : "empty";
+    return ["menu", state.menuDisplayMode, referenceTime, period, state.slideSeconds.menu, items.length, index, itemKey].join("|");
+  }
+
+  async function renderMenuScreen(options = {}) {
+    const referenceTime = options.previewTime || params.get("time") || currentTimeString();
+    const { period, items } = getMenuItems(referenceTime);
+    const screen = createEl("section", "signage-screen menu-screen marble-menu-screen");
+
+    const item = items[menuSlideIndex(items)];
+    const stage = createEl("div", "menu-stage");
+    if (!item) {
+      stage.appendChild(createEl("div", "empty-events", "現在表示する商品メニューはありません"));
+    } else {
+      const photo = createEl("figure", "menu-photo");
+      const imageUrl = await resolveMediaUrl(item.image);
+      if (imageUrl) {
+        const image = document.createElement("img");
+        image.src = imageUrl;
+        image.alt = item.name;
+        photo.appendChild(image);
+      } else {
+        const placeholder = createEl("div", "menu-photo-placeholder");
+        placeholder.append(
+          createEl("span", "", "HOTEL NEW ITAYA"),
+          createEl("strong", "", item.name)
+        );
+        photo.appendChild(placeholder);
+      }
+      const info = createEl("section", "menu-info");
+      const meta = createEl("div", "menu-meta");
+      meta.append(
+        createEl("span", "", menuPeriodLabel(item.period)),
+        createEl("span", "", item.serviceTime || "提供時間は店頭でご確認ください")
+      );
+      const titleLine = createEl("div", "menu-title-line");
+      titleLine.append(
+        createEl("h2", "", item.name),
+        createEl("div", "menu-price", item.price)
+      );
+      info.append(meta, titleLine);
+      if (item.description) {
+        info.appendChild(createEl("p", "menu-description", item.description));
+      }
+      stage.append(photo, info);
+    }
+
+    screen.appendChild(stage);
+    return screen;
+  }
+
   function getVenueEvents(referenceTime, referenceDate) {
     const period = periodForTime(referenceTime);
     const targetDate = normalizeDateString(referenceDate) || currentDateString();
@@ -2427,7 +2848,9 @@
   }
 
   function renderKeyFor(type, options = {}) {
-    return type === "venue" ? venueRenderKey(options) : adRenderKey(type, options);
+    if (type === "venue") return venueRenderKey(options);
+    if (type === "menu") return menuRenderKey(options);
+    return adRenderKey(type, options);
   }
 
   function renderVenueScreen(options = {}) {
@@ -2485,10 +2908,10 @@
     if (mount.dataset.renderKey === nextKey && mount.firstElementChild) return;
     const token = ++renderToken;
     const previous = mount.querySelector(".signage-screen");
-    const screen = type === "venue" ? renderVenueScreen(options) : await renderAdScreen(type, options);
+    const screen = type === "venue" ? renderVenueScreen(options) : type === "menu" ? await renderMenuScreen(options) : await renderAdScreen(type, options);
     if (token !== renderToken) return;
     screen.dataset.renderKey = nextKey;
-    if (type !== "venue" && previous) {
+    if (type !== "venue" && type !== "menu" && previous) {
       if (patchAdScreen(previous, screen)) {
         mount.dataset.renderKey = nextKey;
         return;

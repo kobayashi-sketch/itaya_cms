@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@200..900&display=swap" rel="stylesheet">
     <title>&#12507;&#12486;&#12523;&#12491;&#12517;&#12540;&#12452;&#12479;&#12516; &#12469;&#12452;&#12493;&#12540;&#12472;&#31649;&#29702;</title>
-    <link rel="stylesheet" href="./styles.css?v=20260808-21">
+    <link rel="stylesheet" href="./styles.css?v=20260814-01">
   </head>
   <body class="auth-locked" data-admin-screen="ad1">
     <main id="loginApp" class="login-app" aria-label="Login">
@@ -37,6 +37,7 @@
         <a data-admin-nav="ad1" href="./admin-ad1.html">&#24195;&#21578;&#9312;</a>
         <a data-admin-nav="ad2" href="./admin-ad2.html">&#24195;&#21578;&#9313;</a>
         <a data-admin-nav="marble" href="./admin-marble.html">マーブル</a>
+        <a data-admin-nav="menu" href="./admin-menu.html">メニュー</a>
         <a data-admin-nav="report" href="./report.html">帳票出力</a>
         <a class="admin-nav-manual" href="./itaya_signage_manual.pdf" target="_blank" rel="noopener">操作マニュアル</a>
       </nav>
@@ -245,10 +246,95 @@
             </div>
           </section>
 
-          <section class="panel" data-admin-panel="venue">
+          <section class="panel" data-admin-panel="menu">
             <div class="panel-title">
               <div>
                 <p class="panel-kicker">Admin 04</p>
+                <h2>商品メニュー</h2>
+              </div>
+              <a class="ghost-link" data-view-link href="./menu.html" target="_blank">表示画面</a>
+            </div>
+            <p class="panel-note">写真、商品名、金額、説明、提供時間、表示時間帯を登録します。表示時間帯は朝・昼と夕方で自動的に出し分けできます。</p>
+
+            <form id="menuForm" class="menu-form">
+              <label class="menu-image-field">
+                <span>写真</span>
+                <input id="menuImage" type="file" accept=".jpg,.jpeg,.png,.webp,image/*">
+              </label>
+              <label>
+                <span>商品名</span>
+                <input id="menuName" type="text" required maxlength="80" placeholder="例：とちぎ霧降高原牛ステーキ重">
+              </label>
+              <label>
+                <span>金額</span>
+                <input id="menuPrice" type="text" required maxlength="40" placeholder="例：2,800円">
+              </label>
+              <label>
+                <span>提供時間</span>
+                <input id="menuServiceTime" type="text" maxlength="60" placeholder="例：11:30〜14:30">
+              </label>
+              <label>
+                <span>表示時間帯</span>
+                <select id="menuPeriod">
+                  <option value="day">朝・昼</option>
+                  <option value="evening">夕方</option>
+                  <option value="all">終日</option>
+                </select>
+              </label>
+              <label>
+                <span>表示順</span>
+                <input id="menuOrder" type="number" min="0" max="10000" step="10">
+              </label>
+              <label class="menu-description-field">
+                <span>説明</span>
+                <textarea id="menuDescription" rows="3" maxlength="180" placeholder="2〜3行程度"></textarea>
+              </label>
+              <label class="check-row menu-image-remove">
+                <input id="menuImageRemove" type="checkbox">
+                <span>登録済み写真を削除</span>
+              </label>
+              <div class="event-form-actions">
+                <button id="menuSubmitButton" type="submit">追加</button>
+                <button id="cancelMenuEdit" class="secondary is-hidden" type="button">編集取消</button>
+              </div>
+            </form>
+            <p id="menuImageStatus" class="panel-note menu-image-status">未設定</p>
+
+            <div class="venue-options">
+              <fieldset class="venue-option-group">
+                <legend>表示範囲</legend>
+                <div class="venue-toggle">
+                  <label>
+                    <input id="menuModeAuto" type="radio" name="menuDisplayMode" value="auto">
+                    <span>時間帯で自動</span>
+                  </label>
+                  <label>
+                    <input id="menuModeAll" type="radio" name="menuDisplayMode" value="all">
+                    <span>すべて</span>
+                  </label>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="event-tools">
+              <label>
+                <span>スライド秒数</span>
+                <input id="menuSlideSeconds" type="number" min="1" max="120" step="1">
+              </label>
+              <label>
+                <span>プレビュー時刻</span>
+                <input id="menuPreviewTime" type="time">
+              </label>
+              <button id="restoreMenuSamples" type="button">サンプル復元</button>
+              <button id="clearMenuItems" type="button">商品メニューを空にする</button>
+            </div>
+            <div id="menuItemList" class="event-list"></div>
+          </section>
+
+          <section class="panel" data-admin-panel="venue">
+            <div class="panel-title">
+              <div>
+                <p class="panel-kicker">Admin 05</p>
                 <h2>&#20250;&#22580;</h2>
               </div>
               <a class="ghost-link" data-view-link href="./venue.html" target="_blank">表示画面</a>
@@ -362,6 +448,7 @@
               <button class="active" type="button" data-preview-screen="ad1">広告①</button>
               <button type="button" data-preview-screen="ad2">広告②</button>
               <button type="button" data-preview-screen="marble">マーブル</button>
+              <button type="button" data-preview-screen="menu">メニュー</button>
               <button type="button" data-preview-screen="venue">会場</button>
             </div>
           </div>
@@ -372,6 +459,6 @@
 
     <main id="viewerApp" class="viewer-app" aria-label="サイネージ表示画面"></main>
 
-    <script src="./app.js?v=20260808-21"></script>
+    <script src="./app.js?v=20260814-01"></script>
   </body>
 </html>

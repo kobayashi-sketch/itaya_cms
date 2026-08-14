@@ -57,6 +57,7 @@ $logLine = json_encode([
     'remoteAddr' => $_SERVER['REMOTE_ADDR'] ?? '',
     'userAgent' => substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 200),
     'events' => count($sanitized['events'] ?? []),
+    'menuItems' => count($sanitized['menuItems'] ?? []),
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 if ($logLine !== false) {
     file_put_contents($logFile, $logLine . PHP_EOL, FILE_APPEND | LOCK_EX);

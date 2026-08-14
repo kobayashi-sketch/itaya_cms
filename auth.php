@@ -271,6 +271,50 @@ function signage_events(mixed $items): array
     return $normalized;
 }
 
+function signage_menu_period(mixed $value): string
+{
+    $period = signage_string($value, 20);
+    return in_array($period, ['day', 'evening', 'all'], true) ? $period : 'day';
+}
+
+function signage_menu_image(mixed $item): ?array
+{
+    $media = signage_media_list([$item]);
+    return $media[0] ?? null;
+}
+
+function signage_menu_items(mixed $items): array
+{
+    if (!is_array($items)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach (array_slice($items, 0, 300) as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $name = signage_string($item['name'] ?? '', 80);
+        $price = signage_string($item['price'] ?? '', 40);
+        if ($name === '' || $price === '') {
+            continue;
+        }
+        $menuItem = [
+            'id' => signage_string($item['id'] ?? bin2hex(random_bytes(16)), 80),
+            'visibleOnSignage' => ($item['visibleOnSignage'] ?? true) !== false,
+            'name' => $name,
+            'price' => $price,
+            'description' => signage_multiline_string($item['description'] ?? '', 180),
+            'serviceTime' => signage_string($item['serviceTime'] ?? '', 60),
+            'period' => signage_menu_period($item['period'] ?? ''),
+            'order' => signage_int_range($item['order'] ?? 0, 0, 10000, 0),
+            'image' => signage_menu_image($item['image'] ?? null),
+        ];
+        $normalized[] = $menuItem;
+    }
+    return $normalized;
+}
+
 function signage_sanitize_state(array $state): array
 {
     $slideSeconds = is_array($state['slideSeconds'] ?? null) ? $state['slideSeconds'] : [];
@@ -296,12 +340,15 @@ function signage_sanitize_state(array $state): array
         'venueEndedMode' => ($state['venueEndedMode'] ?? '') === 'hide' ? 'hide' : 'show',
         'venueTheme' => ($state['venueTheme'] ?? '') === 'dark' ? 'dark' : 'light',
         'venueDate' => signage_date($state['venueDate'] ?? ''),
+        'menuDisplayMode' => ($state['menuDisplayMode'] ?? '') === 'all' ? 'all' : 'auto',
+        'menuItems' => signage_menu_items($state['menuItems'] ?? []),
         'adPortrait' => signage_media_list($state['adPortrait'] ?? []),
         'adLandscape' => signage_media_list($state['adLandscape'] ?? []),
         'slideSeconds' => [
             'ad' => signage_int_range($slideSeconds['ad'] ?? 5, 1, 120, 5),
             'ad2' => signage_int_range($slideSeconds['ad2'] ?? 5, 1, 120, 5),
             'marble' => signage_int_range($slideSeconds['marble'] ?? 5, 1, 120, 5),
+            'menu' => signage_int_range($slideSeconds['menu'] ?? 5, 1, 120, 5),
             'venue' => signage_int_range($slideSeconds['venue'] ?? 5, 1, 120, 5),
             'adPortrait' => signage_int_range($slideSeconds['adPortrait'] ?? 5, 1, 120, 5),
             'adLandscape' => signage_int_range($slideSeconds['adLandscape'] ?? 5, 1, 120, 5),
